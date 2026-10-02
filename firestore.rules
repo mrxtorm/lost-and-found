@@ -1,0 +1,260 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // ITEMS
+    // ============================================================
+
+    match /items/{itemId} {
+
+      // All authenticated users can see Lost/Found posts.
+      allow read: if request.auth != null;
+
+      // A user can create only their own post.
+      allow create: if request.auth != null
+        && request.resource.data.ownerId == request.auth.uid;
+
+      // Only the owner can update their item.
+      // Ownership cannot be transferred.
+      allow update: if request.auth != null
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid;
+
+      // Only the owner can delete their item.
+      // This is used when a claim is accepted.
+      allow delete: if request.auth != null
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+
+    // ============================================================
+    // CLAIMS
+    // ============================================================
+
+    match /claims/{claimId} {
+
+      // A claim is private.
+      //
+      // Only:
+      // 1. The person who submitted the claim
+      // 2. The finder/owner of the item
+      //
+      // can see it.
+      allow read: if request.auth != null
+        && (
+          resource.data.claimantId == request.auth.uid
+          || resource.data.ownerId == request.auth.uid
+        );
+
+      // A user can submit a claim for a Found item.
+      allow create: if request.auth != null
+        && claimId == request.resource.data.itemId
+        && request.resource.data.claimantId == request.auth.uid
+        && request.resource.data.ownerId != request.auth.uid
+        && request.resource.data.status == 'Pending'
+        && exists(
+          /databases/$(database)/documents/items/$(request.resource.data.itemId)
+        )
+        && get(
+          /databases/$(database)/documents/items/$(request.resource.data.itemId)
+        ).data.ownerId == request.resource.data.ownerId
+        && get(
+          /databases/$(database)/documents/items/$(request.resource.data.itemId)
+        ).data.status == 'Found';
+
+      // Only the finder/owner can accept or reject the claim.
+      //
+      // The claimant's submitted information cannot be modified by
+      // the finder.
+      allow update: if request.auth != null
+        && resource.data.ownerId == request.auth.uid
+
+        && request.resource.data.claimantId == resource.data.claimantId
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.itemId == resource.data.itemId
+        && request.resource.data.itemTitle == resource.data.itemTitle
+        && request.resource.data.itemImageUrl == resource.data.itemImageUrl
+        && request.resource.data.answer == resource.data.answer
+        && request.resource.data.additionalDetails == resource.data.additionalDetails
+        && request.resource.data.createdAt == resource.data.createdAt
+
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status'
+        ])
+
+        && request.resource.data.status in [
+          'Pending',
+          'Approved',
+          'Rejected'
+        ];
+
+      // Only the finder can delete an approved claim.
+      allow delete: if request.auth != null
+        && resource.data.ownerId == request.auth.uid
+        && resource.data.status == 'Approved';
+    }
+
+
+    // ============================================================
+    // NOTIFICATIONS
+    // ============================================================
+
+    match /notifications/{notificationId} {
+
+      // Users can only read their own notifications.
+      allow read: if request.auth != null
+        && resource.data.recipientId == request.auth.uid;
+
+      // Users can update their own notifications.
+      allow update: if request.auth != null
+        && resource.data.recipientId == request.auth.uid;
+
+      // Authenticated users can create notifications.
+      allow create: if request.auth != null;
+
+      // Users can delete their own notifications.
+      allow delete: if request.auth != null
+        && resource.data.recipientId == request.auth.uid;
+    }
+
+
+    // ============================================================
+    // CONVERSATIONS
+    // ============================================================
+
+    match /conversations/{conversationId} {
+
+      // IMPORTANT:
+      //
+      // Do NOT use an exists() fallback here.
+      //
+      // This allows queries such as:
+      //
+      // where('participantIds', arrayContains: currentUserId)
+      //
+      // because Firestore can evaluate participantIds directly.
+      allow read: if request.auth != null
+        && request.auth.uid in resource.data.participantIds;
+
+      // A conversation must contain exactly two participants.
+      // The authenticated user must be one of them.
+      allow create: if request.auth != null
+        && request.resource.data.participantIds.size() == 2
+        && request.auth.uid in request.resource.data.participantIds
+        && request.resource.data.participantIds[0]
+            != request.resource.data.participantIds[1];
+
+      // Participants can update normal conversation metadata.
+      allow update: if request.auth != null
+        && request.auth.uid in resource.data.participantIds
+
+        // Participants cannot be changed.
+        && request.resource.data.participantIds
+            == resource.data.participantIds
+
+        // Conversation identity cannot be changed.
+        && request.resource.data.postId
+            == resource.data.postId
+
+        && request.resource.data.itemName
+            == resource.data.itemName
+
+        && request.resource.data.itemImageUrl
+            == resource.data.itemImageUrl
+
+        && request.resource.data.itemType
+            == resource.data.itemType
+
+        // Only these fields may change while chatting.
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'lastMessage',
+          'lastMessageTime',
+          'unreadCounts'
+        ]);
+
+      // A participant can delete the conversation.
+      //
+      // IMPORTANT:
+      // The app must delete messages FIRST and the conversation SECOND.
+      allow delete: if request.auth != null
+        && request.auth.uid in resource.data.participantIds;
+
+
+      // ==========================================================
+      // MESSAGES
+      // ==========================================================
+
+      match /messages/{messageId} {
+
+        // Only conversation participants can read messages.
+        allow read: if request.auth != null
+          && request.auth.uid in get(
+            /databases/$(database)/documents/conversations/$(conversationId)
+          ).data.participantIds;
+
+        // Only conversation participants can send messages.
+        allow create: if request.auth != null
+
+          && request.auth.uid in get(
+            /databases/$(database)/documents/conversations/$(conversationId)
+          ).data.participantIds
+
+          && request.resource.data.senderId == request.auth.uid
+
+          && request.resource.data.senderName is string
+
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+
+          && request.resource.data.isRead == false;
+
+        // A participant can mark somebody else's message as read.
+        // The original message content cannot be changed.
+        allow update: if request.auth != null
+
+          && request.auth.uid in get(
+            /databases/$(database)/documents/conversations/$(conversationId)
+          ).data.participantIds
+
+          && resource.data.senderId != request.auth.uid
+
+          && request.resource.data.senderId
+              == resource.data.senderId
+
+          && request.resource.data.senderName
+              == resource.data.senderName
+
+          && request.resource.data.text
+              == resource.data.text
+
+          && request.resource.data.timestamp
+              == resource.data.timestamp
+
+          && resource.data.isRead == false
+
+          && request.resource.data.isRead == true;
+
+        // Participants can delete messages.
+        //
+        // The app must perform these deletes before deleting the
+        // parent conversation.
+        allow delete: if request.auth != null
+          && request.auth.uid in get(
+            /databases/$(database)/documents/conversations/$(conversationId)
+          ).data.participantIds;
+      }
+    }
+
+
+    // ============================================================
+    // EVERYTHING ELSE
+    // ============================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
