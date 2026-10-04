@@ -8,9 +8,19 @@ import '../providers/claim_provider.dart';
 class ClaimItemScreen extends StatefulWidget {
   final ItemModel item;
 
+  /// True when re-sending a claim that was rejected.
+  final bool isResend;
+
+  /// Pre-filled from the rejected claim so the user only edits what changed.
+  final String initialAnswer;
+  final String initialDetails;
+
   const ClaimItemScreen({
     super.key,
     required this.item,
+    this.isResend = false,
+    this.initialAnswer = '',
+    this.initialDetails = '',
   });
 
   @override
@@ -26,6 +36,13 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
 
   final GlobalKey<FormState> _formKey =
   GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    answerController.text = widget.initialAnswer;
+    detailsController.text = widget.initialDetails;
+  }
 
   @override
   void dispose() {
@@ -76,8 +93,11 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
             ],
           ),
 
-          content: const Text(
-            "Your claim request has been submitted successfully. "
+          content: Text(
+            widget.isResend
+                ? "Your claim has been resent. The finder has been "
+                "notified and will review it again."
+                : "Your claim request has been submitted successfully. "
                 "The owner or administrator will review your request.",
           ),
 
@@ -99,7 +119,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Claim Item"),
+        title: Text(widget.isResend ? "Resend Claim" : "Claim Item"),
         centerTitle: true,
       ),
 
@@ -451,7 +471,9 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
                   label: Text(
                     isSubmitting
                         ? "Submitting..."
-                        : "Submit Claim Request",
+                        : (widget.isResend
+                        ? "Resend Claim Request"
+                        : "Submit Claim Request"),
 
                     style: const TextStyle(
                       fontSize: 16,

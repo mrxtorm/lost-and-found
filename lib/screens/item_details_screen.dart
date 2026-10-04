@@ -142,6 +142,35 @@ class ItemDetailsScreen extends StatelessWidget {
     );
   }
 
+  Widget _rejectedClaimBadge() {
+    return Positioned(
+      top: 14,
+      right: 14,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.red.shade600,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cancel_outlined, size: 15, color: Colors.white),
+            SizedBox(width: 6),
+            Text(
+              'CLAIM REJECTED',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUid = context.watch<AuthProvider>().user?.uid ??
@@ -161,6 +190,9 @@ class ItemDetailsScreen extends StatelessWidget {
           final hasPendingClaimFromMe = claim != null &&
               claim.claimantId == currentUid &&
               claim.status.toLowerCase() == 'pending';
+          final hasRejectedClaimFromMe = claim != null &&
+              claim.claimantId == currentUid &&
+              claim.status.toLowerCase() == 'rejected';
 
           return SingleChildScrollView(
             child: Column(
@@ -171,6 +203,7 @@ class ItemDetailsScreen extends StatelessWidget {
                     Hero(tag: item.id, child: _buildHeroImage()),
                     _publicTypeBadge(),
                     if (claim != null) _privateClaimBadge(claim, currentUid),
+                    if (hasRejectedClaimFromMe) _rejectedClaimBadge(),
                     if (item.isSyncPending)
                       Positioned(
                         top: 58,
@@ -263,9 +296,32 @@ class ItemDetailsScreen extends StatelessWidget {
                           ),
                         ),
 
-                      // CLAIM BUTTON
-                      // It disappears only for the claimant who already has
-                      // a pending claim. Other users still see Claim Item.
+                      // CLAIM / RESEND CLAIM BUTTON
+                      // Hidden only while the user's own claim is pending.
+                      // After a rejection it becomes "Resend Claim".
+                      if (!isOwnPost &&
+                          publicType == 'FOUND' &&
+                          hasRejectedClaimFromMe)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.red.shade100),
+                          ),
+                          child: Text(
+                            'Your claim was rejected. You can update your '
+                                'answer and resend it.',
+                            style: TextStyle(
+                              color: Colors.red.shade800,
+                              fontSize: 13,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+
                       if (!isOwnPost &&
                           publicType == 'FOUND' &&
                           !hasPendingClaimFromMe)
@@ -277,14 +333,29 @@ class ItemDetailsScreen extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => ClaimItemScreen(item: item),
+                                  builder: (_) => ClaimItemScreen(
+                                    item: item,
+                                    isResend: hasRejectedClaimFromMe,
+                                    initialAnswer: hasRejectedClaimFromMe
+                                        ? (claim?.answer ?? '')
+                                        : '',
+                                    initialDetails: hasRejectedClaimFromMe
+                                        ? (claim?.additionalDetails ?? '')
+                                        : '',
+                                  ),
                                 ),
                               );
                             },
-                            icon: const Icon(Icons.assignment_turned_in),
-                            label: const Text(
-                              'Claim Item',
-                              style: TextStyle(
+                            icon: Icon(
+                              hasRejectedClaimFromMe
+                                  ? Icons.refresh
+                                  : Icons.assignment_turned_in,
+                            ),
+                            label: Text(
+                              hasRejectedClaimFromMe
+                                  ? 'Resend Claim'
+                                  : 'Claim Item',
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),

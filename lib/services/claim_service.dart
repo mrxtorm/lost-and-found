@@ -128,6 +128,10 @@ class ClaimService {
     final claimRef = _claims.doc(claimId);
     final existing = await claimRef.get();
 
+    // A claim doc that already exists at this point can only be a rejected
+    // one (pending/approved throw below), so this is a resend.
+    final isResend = existing.exists;
+
     if (existing.exists) {
       final existingData = existing.data() ?? <String, dynamic>{};
       final existingClaimantId = existingData['claimantId'] as String? ?? '';
@@ -187,11 +191,17 @@ class ClaimService {
       );
 
       await _chatService.sendMessageWithId(
-        messageId: 'claim_${item.id}',
+        // A resend needs a fresh id; the original claim message already
+        // uses 'claim_<itemId>' and Firestore rules don't allow overwriting it.
+        messageId: isResend
+            ? 'claim_${item.id}_${DateTime.now().millisecondsSinceEpoch}'
+            : 'claim_${item.id}',
         conversationId: conversationId,
         senderId: user.uid,
         senderName: claimantName,
-        text: 'Claim request submitted for "${item.title}".',
+        text: isResend
+            ? 'Claim request resent for "${item.title}".'
+            : 'Claim request submitted for "${item.title}".',
         timestamp: DateTime.now(),
       );
     } catch (_) {
@@ -202,8 +212,10 @@ class ClaimService {
     await _notificationService.createNotification(
       recipientId: item.ownerId,
       type: NotificationType.claimReceived,
-      title: 'Claim Request Received',
-      message: '$claimantName submitted a claim for "${item.title}".',
+      title: isResend ? 'Claim Request Resent' : 'Claim Request Received',
+      message: isResend
+          ? '$claimantName resent their claim for "${item.title}".'
+          : '$claimantName submitted a claim for "${item.title}".',
       relatedItemId: item.id,
       relatedClaimId: claimRef.id,
     );

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../data/local/app_database.dart';
+import '../models/item_model.dart';
+import 'claim_item_screen.dart';
 import '../models/claim_model.dart';
 import '../data/repositories/claim_repository.dart';
 import '../models/conversation_model.dart';
@@ -138,6 +142,67 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   String _currentClaimId = '';
+
+  Future<void> _resendClaim(ClaimModel claim) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    ItemModel? item;
+
+    // Local cache first (works offline)...
+    try {
+      final row = await context.read<AppDatabase>().getItem(claim.itemId);
+      if (row != null) {
+        item = ItemModel(
+          id: row.id,
+          title: row.title,
+          description: row.description,
+          category: row.category,
+          location: row.location,
+          date: row.date,
+          status: row.status,
+          imageUrl: row.imageUrl,
+          username: row.username,
+          ownerId: row.ownerId,
+          verificationQuestion: row.verificationQuestion,
+          createdAt: row.createdAt,
+          localImagePath: row.localImagePath,
+        );
+      }
+    } catch (_) {}
+
+    // ...then Firestore.
+    if (item == null) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('items')
+            .doc(claim.itemId)
+            .get()
+            .timeout(const Duration(seconds: 6));
+        if (doc.exists) item = ItemModel.fromDoc(doc);
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+
+    final resolvedItem = item;
+    if (resolvedItem == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('This post is no longer available.')),
+      );
+      return;
+    }
+
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => ClaimItemScreen(
+          item: resolvedItem,
+          isResend: true,
+          initialAnswer: claim.answer,
+          initialDetails: claim.additionalDetails,
+        ),
+      ),
+    );
+  }
 
   void _scrollToBottom({required bool animated}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -375,6 +440,17 @@ class _ConversationScreenState extends State<ConversationScreen> {
               'This claim was rejected. The conversation remains open for further discussion.',
               style: TextStyle(fontSize: 12),
             ),
+            if (isClaimant) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _resendClaim(claim),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Resend Claim'),
+                ),
+              ),
+            ],
           ],
           if (approved) ...[
             const SizedBox(height: 8),
