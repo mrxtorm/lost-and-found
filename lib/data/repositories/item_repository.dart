@@ -8,8 +8,10 @@ import 'package:uuid/uuid.dart';
 
 import '../../models/item_model.dart';
 import '../../models/notification_model.dart';
+import '../../services/item_matching_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/item_service.dart';
+import '../../services/notification_service.dart';
 import '../local/app_database.dart';
 
 /// Offline-first access point for lost/found items.
@@ -24,6 +26,7 @@ class ItemRepository {
   final AppDatabase _db;
   final ItemService _itemService;
   final CloudinaryService _cloudinaryService;
+  final NotificationService _notificationService;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   StreamSubscription<List<ItemModel>>? _remoteSub;
@@ -34,7 +37,8 @@ class ItemRepository {
     CloudinaryService? cloudinaryService,
   })  : _db = database,
         _itemService = itemService ?? ItemService(),
-        _cloudinaryService = cloudinaryService ?? CloudinaryService();
+        _cloudinaryService = cloudinaryService ?? CloudinaryService(),
+        _notificationService = NotificationService();
 
   /// Starts a live Firestore listener that keeps the local cache up to
   /// date whenever the app has a connection. Items are public (not scoped
@@ -81,6 +85,28 @@ class ItemRepository {
 
   Stream<List<ItemModel>> watchUserItems(String ownerId) {
     return _db.watchUserItems(ownerId).map(_toModelList);
+  }
+
+  /// Finds possible opposite-type reports from the local cache.
+  ///
+  /// Because the local database is the UI source of truth, this also works
+  /// immediately after an offline report is created.
+  Future<List<ItemMatch>> findPotentialMatches(
+    String itemId, {
+    String? currentUserId,
+  }) async {
+    final currentRow = await _db.getItem(itemId);
+    if (currentRow == null) return const [];
+
+    final rows = await _db.getItemsForMatching();
+    final currentItem = _toModel(currentRow);
+    final candidates = rows.map(_toModel);
+
+    return ItemMatchingService.findMatches(
+      item: currentItem,
+      candidates: candidates,
+      currentUserId: currentUserId,
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -264,6 +290,20 @@ class ItemRepository {
       });
 
       await _db.markItemSynced(id, imageUrl: imageUrl);
+
+      // Category-based notifications are best-effort. The item itself is
+      // already safely synced, so a temporary notification failure must not
+      // make the user's report appear stuck offline.
+      if (row.status.toLowerCase() == 'found') {
+        try {
+          await _notificationService.notifyLostUsersForFoundItem(
+            _toModel(row).copyWith(imageUrl: imageUrl),
+          );
+        } catch (_) {
+          // The report remains synced even if notification delivery fails.
+        }
+      }
+
       await _notifyReportPosted(row.copyWith(imageUrl: imageUrl));
     } catch (_) {
       // Leave pendingCreate=true - retried on the next sync pass.

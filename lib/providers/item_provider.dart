@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/repositories/item_repository.dart';
 import '../models/item_model.dart';
+import '../services/item_matching_service.dart';
 
 /// Owns the live list of items and the Home / My Posts filter state, so
 /// screens read from here instead of holding their own StreamBuilders and
@@ -159,6 +160,13 @@ class ItemProvider with ChangeNotifier {
   void setMyPostsFilter(String value) {
     myPostsFilter = value;
     notifyListeners();
+  }
+
+  Future<List<ItemMatch>> findPotentialMatches(String itemId) {
+    return _itemRepository.findPotentialMatches(
+      itemId,
+      currentUserId: _currentUserId,
+    );
   }
 
   Future<String> reportItem({

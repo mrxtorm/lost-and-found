@@ -64,6 +64,16 @@ class AppDatabase extends _$AppDatabase {
         .getSingleOrNull();
   }
 
+  /// Returns all locally cached, non-deleted items for offline matching.
+  ///
+  /// Matching is filtered in Dart so it works without requiring a new
+  /// Firestore/SQLite composite index.
+  Future<List<ItemRow>> getItemsForMatching() {
+    return (select(items)
+      ..where((t) => t.pendingDelete.equals(false)))
+        .get();
+  }
+
   /// Inserts or updates a single item as a local (not-yet-synced) write.
   Future<void> upsertLocalItem(ItemsCompanion row) {
     return into(items).insertOnConflictUpdate(row);
@@ -148,6 +158,10 @@ class AppDatabase extends _$AppDatabase {
 
   Stream<ClaimRow?> watchClaimById(String id) {
     return (select(claims)..where((t) => t.id.equals(id))).watchSingleOrNull();
+  }
+
+  Stream<List<ClaimRow>> watchClaimsForItem(String itemId) {
+    return (select(claims)..where((t) => t.itemId.equals(itemId))).watch();
   }
 
   Future<void> upsertLocalClaim(ClaimsCompanion row) {
@@ -356,6 +370,40 @@ class AppDatabase extends _$AppDatabase {
             pendingCreate: const Value(false),
           ),
         );
+      }
+    });
+  }
+
+  Future<void> syncClaimsForClaimantFromServer(
+      String claimantId,
+      List<ClaimsCompanion> serverRows,
+      ) async {
+    await transaction(() async {
+      final serverIds = serverRows.map((r) => r.id.value).toSet();
+      final localRows = await (select(claims)
+            ..where((t) => t.claimantId.equals(claimantId)))
+          .get();
+      final localById = {for (final r in localRows) r.id: r};
+
+      for (final serverRow in serverRows) {
+        final local = localById[serverRow.id.value];
+        final hasPendingChange =
+            local != null && (local.pendingCreate || local.pendingUpdate);
+        if (hasPendingChange) continue;
+        await into(claims).insertOnConflictUpdate(
+          serverRow.copyWith(
+            synced: const Value(true),
+            pendingCreate: const Value(false),
+            pendingUpdate: const Value(false),
+          ),
+        );
+      }
+
+      for (final local in localRows) {
+        final hasPendingChange = local.pendingCreate || local.pendingUpdate;
+        if (!serverIds.contains(local.id) && !hasPendingChange) {
+          await (delete(claims)..where((t) => t.id.equals(local.id))).go();
+        }
       }
     });
   }

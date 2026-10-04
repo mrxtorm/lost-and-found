@@ -203,7 +203,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
           // two people involved in this conversation because the claim
           // document itself is private.
           : StreamBuilder<ClaimModel?>(
-              stream: context.read<ClaimRepository>().watchClaimForItem(conversation.postId),
+              stream: context.read<ClaimRepository>().watchClaimForConversation(
+                conversation.postId,
+                conversation.otherUserId,
+              ),
               builder: (context, claimSnapshot) {
                 final claim = claimSnapshot.data;
                 if (claim != null) {

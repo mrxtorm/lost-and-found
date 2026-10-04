@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/notification_model.dart';
+import '../models/item_model.dart';
 
 /// Handles reading and writing in-app notifications.
 ///
@@ -16,6 +17,10 @@ class NotificationService {
 
   CollectionReference<Map<String, dynamic>> get _notifications =>
       _firestore.collection('notifications');
+
+
+  CollectionReference<Map<String, dynamic>> get _items =>
+      _firestore.collection('items');
 
   String get _uid {
     final user = _auth.currentUser;
@@ -66,6 +71,58 @@ class NotificationService {
     );
 
     await _notifications.add(notification.toMap());
+  }
+
+  /// Notifies users who previously reported a Lost item in the same
+  /// category when a new Found item is posted.
+  ///
+  /// This is intentionally done after the Found item is successfully written
+  /// to Firestore. If the report was created offline, ItemRepository calls
+  /// this method when the queued report finally syncs.
+  Future<void> notifyLostUsersForFoundItem(ItemModel foundItem) async {
+    if (foundItem.status.toLowerCase() != 'found') return;
+
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    final snapshot = await _items
+        .where('category', isEqualTo: foundItem.category)
+        .get();
+
+    final notifiedUsers = <String>{};
+    final foundCreatedAt =
+        foundItem.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final ownerId = data['ownerId'] as String? ?? '';
+      final status = (data['status'] as String? ?? '').toLowerCase();
+
+      if (ownerId.isEmpty ||
+          ownerId == currentUser.uid ||
+          status != 'lost' ||
+          notifiedUsers.contains(ownerId)) {
+        continue;
+      }
+
+      final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+      if (createdAt != null && !createdAt.isBefore(foundCreatedAt)) {
+        // Only notify users whose Lost report existed before this Found item.
+        continue;
+      }
+
+      notifiedUsers.add(ownerId);
+
+      await createNotification(
+        recipientId: ownerId,
+        type: NotificationType.categoryMatch,
+        title: 'Possible Match Found',
+        message:
+            'A found item named "${foundItem.title}" was reported under '
+            'the "${foundItem.category}" category. Tap to view it.',
+        relatedItemId: foundItem.id,
+      );
+    }
   }
 
   Future<void> markAsRead(String notificationId) {

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// icon/color; Firestore just stores the string.
 class NotificationType {
   static const match = 'match';
+  static const categoryMatch = 'category_match';
   static const claimReceived = 'claim_received';
   static const claimApproved = 'claim_approved';
   static const claimRejected = 'claim_rejected';

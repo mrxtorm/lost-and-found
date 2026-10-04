@@ -11,7 +11,7 @@ import 'chat_service.dart';
 ///
 /// IMPORTANT:
 /// - items/{itemId}.status stays Lost/Found while a claim is pending.
-/// - claims/{itemId}.status contains Pending/Approved/Rejected.
+/// - claims/{itemId}_{claimantId}.status contains Pending/Approved/Rejected.
 /// - Only the item owner and the claimant can read the claim document.
 class ClaimService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -36,10 +36,47 @@ class ClaimService {
   /// Returns the claim belonging to [itemId] when the current user is the
   /// claimant or the owner. Firestore rules hide it from everybody else.
   Stream<ClaimModel?> streamClaimForItem(String itemId) {
-    return _claims.doc(itemId).snapshots().map((doc) {
-      if (!doc.exists) return null;
-      return ClaimModel.fromDoc(doc);
-    });
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return const Stream.empty();
+
+    return _claims
+        .where('itemId', isEqualTo: itemId)
+        .where('claimantId', isEqualTo: uid)
+        .limit(1)
+        .snapshots()
+        .map((snap) => snap.docs.isEmpty
+            ? null
+            : ClaimModel.fromDoc(snap.docs.first));
+  }
+
+  Stream<ClaimModel?> streamClaimForConversation(
+    String itemId,
+    String otherUserId,
+  ) {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || otherUserId.isEmpty) return const Stream.empty();
+
+    return _claims
+        .where('itemId', isEqualTo: itemId)
+        .where('claimantId', whereIn: [uid, otherUserId])
+        .snapshots()
+        .map((snap) {
+          for (final doc in snap.docs) {
+            final claim = ClaimModel.fromDoc(doc);
+            if ((claim.claimantId == uid && claim.ownerId == otherUserId) ||
+                (claim.claimantId == otherUserId && claim.ownerId == uid)) {
+              return claim;
+            }
+          }
+          return null;
+        });
+  }
+
+  Stream<List<ClaimModel>> streamClaimsForClaimant(String claimantId) {
+    return _claims
+        .where('claimantId', isEqualTo: claimantId)
+        .snapshots()
+        .map((snap) => snap.docs.map(ClaimModel.fromDoc).toList());
   }
 
   /// One-time check used by the Claim Item button. This also works after an
@@ -49,11 +86,14 @@ class ClaimService {
     if (user == null) return false;
 
     try {
-      final doc = await _claims.doc(itemId).get();
-      if (!doc.exists) return false;
-      final data = doc.data();
-      return data?['claimantId'] == user.uid &&
-          (data?['status'] as String? ?? '').toLowerCase() == 'pending';
+      final snap = await _claims
+          .where('itemId', isEqualTo: itemId)
+          .where('claimantId', isEqualTo: user.uid)
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) return false;
+      final data = snap.docs.first.data();
+      return (data['status'] as String? ?? '').toLowerCase() == 'pending';
     } catch (_) {
       return false;
     }
@@ -84,23 +124,54 @@ class ClaimService {
             ? user.displayName!.trim()
             : (user.email ?? 'Unknown User');
 
-    final claimRef = _claims.doc(item.id);
-    final claim = ClaimModel(
-      id: claimRef.id,
-      itemId: item.id,
-      itemTitle: item.title,
-      itemImageUrl: item.imageUrl,
-      claimantId: user.uid,
-      claimantName: claimantName,
-      ownerId: item.ownerId,
-      answer: answer.trim(),
-      additionalDetails: additionalDetails.trim(),
-      status: 'Pending',
-    );
+    final claimId = '${item.id}_${user.uid}';
+    final claimRef = _claims.doc(claimId);
+    final existing = await claimRef.get();
 
-    // Keep the item's public status unchanged. The claim is private to the
-    // two involved users through Firestore security rules.
-    await claimRef.set(claim.toMap());
+    if (existing.exists) {
+      final existingData = existing.data() ?? <String, dynamic>{};
+      final existingClaimantId = existingData['claimantId'] as String? ?? '';
+      final existingStatus =
+          (existingData['status'] as String? ?? '').toLowerCase();
+
+      if (existingClaimantId != user.uid) {
+        throw Exception('This claim belongs to another user.');
+      }
+
+      if (existingStatus == 'pending') {
+        throw Exception('You already submitted a claim for this item.');
+      }
+
+      if (existingStatus == 'approved') {
+        throw Exception('This claim has already been approved.');
+      }
+
+      // A rejected claimant may submit again with updated verification
+      // answers. The same deterministic id still prevents duplicate active
+      // claims for this user/item pair.
+      await claimRef.update({
+        'answer': answer.trim(),
+        'additionalDetails': additionalDetails.trim(),
+        'status': 'Pending',
+      });
+    } else {
+      final claim = ClaimModel(
+        id: claimRef.id,
+        itemId: item.id,
+        itemTitle: item.title,
+        itemImageUrl: item.imageUrl,
+        claimantId: user.uid,
+        claimantName: claimantName,
+        ownerId: item.ownerId,
+        answer: answer.trim(),
+        additionalDetails: additionalDetails.trim(),
+        status: 'Pending',
+      );
+
+      // Keep the item's public status unchanged. The claim is private to the
+      // two involved users through Firestore security rules.
+      await claimRef.set(claim.toMap());
+    }
 
     // Put the claim request into the same conversation used for follow-up
     // discussion. The answers themselves are displayed in the private claim

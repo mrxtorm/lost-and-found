@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/item_provider.dart';
+import 'potential_matches_screen.dart';
 
 class ReportItemScreen extends StatefulWidget {
   const ReportItemScreen({super.key});
@@ -171,7 +172,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
     });
 
     try {
-      await context.read<ItemProvider>().reportItem(
+      final itemId = await context.read<ItemProvider>().reportItem(
         title: itemNameController.text.trim(),
         description: descriptionController.text.trim(),
         category: selectedCategory!,
@@ -185,8 +186,25 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
       );
 
       if (!mounted) return;
-      showMessage("Report submitted successfully.");
-      Navigator.pop(context);
+
+      // The item is already saved locally, so matching works immediately
+      // even when the report was created without internet.
+      final matches =
+          await context.read<ItemProvider>().findPotentialMatches(itemId);
+
+      if (!mounted) return;
+
+      if (matches.isNotEmpty) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PotentialMatchesScreen(itemId: itemId),
+          ),
+        );
+      } else {
+        showMessage("Report submitted successfully.");
+        Navigator.pop(context);
+      }
     } catch (e) {
       if (!mounted) return;
       showMessage("Failed to submit report: $e");

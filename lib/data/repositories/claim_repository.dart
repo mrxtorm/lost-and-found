@@ -28,10 +28,24 @@ class ClaimRepository {
   /// Starts a live Firestore listener for claims made against items owned
   /// by [ownerId]. Call once per signed-in user (see [stopRemoteSync]).
   void startRemoteSync(String ownerId) {
-    if (_remoteSubs.containsKey(ownerId)) return;
-    _remoteSubs[ownerId] = _claimService.streamClaimsForOwner(ownerId).listen(
+    final key = 'owner:$ownerId';
+    if (_remoteSubs.containsKey(key)) return;
+    _remoteSubs[key] = _claimService.streamClaimsForOwner(ownerId).listen(
       (serverClaims) {
         _db.syncClaimsFromServer(
+          ownerId,
+          serverClaims.map(_toCompanion).toList(),
+        );
+      },
+      onError: (_) {},
+    );
+
+    final claimantKey = 'claimant:$ownerId';
+    if (_remoteSubs.containsKey(claimantKey)) return;
+    _remoteSubs[claimantKey] =
+        _claimService.streamClaimsForClaimant(ownerId).listen(
+      (serverClaims) {
+        _db.syncClaimsForClaimantFromServer(
           ownerId,
           serverClaims.map(_toCompanion).toList(),
         );
@@ -41,7 +55,8 @@ class ClaimRepository {
   }
 
   void stopRemoteSync(String ownerId) {
-    _remoteSubs.remove(ownerId)?.cancel();
+    _remoteSubs.remove('owner:$ownerId')?.cancel();
+    _remoteSubs.remove('claimant:$ownerId')?.cancel();
   }
 
   void dispose() {
@@ -56,17 +71,42 @@ class ClaimRepository {
   // ---------------------------------------------------------------------
 
   Stream<ClaimModel?> watchClaimForItem(String itemId) {
-    return _db.watchClaimById(itemId).map((row) {
-      if (row == null) return null;
-
-      // Claim data is private even in the local cache. Only the finder or the
-      // claimant involved in this claim may receive it from this repository.
+    return _db.watchClaimsForItem(itemId).map((rows) {
       final uid = _auth.currentUser?.uid;
-      if (uid == null || (row.ownerId != uid && row.claimantId != uid)) {
-        return null;
-      }
+      if (uid == null) return null;
 
-      return _toModel(row);
+      final visible = rows.where(
+        (row) => row.ownerId == uid || row.claimantId == uid,
+      ).toList();
+
+      if (visible.isEmpty) return null;
+
+      // This method is retained for existing UI that expects a single badge.
+      // Claimants see their own claim; owners see the newest pending claim.
+      final ownClaim = visible.where((row) => row.claimantId == uid);
+      final selected = ownClaim.isNotEmpty
+          ? ownClaim.first
+          : (visible..sort((a, b) => (b.createdAt ?? DateTime(0))
+              .compareTo(a.createdAt ?? DateTime(0)))).first;
+      return _toModel(selected);
+    });
+  }
+
+  Stream<ClaimModel?> watchClaimForConversation(
+    String itemId,
+    String otherUserId,
+  ) {
+    return _db.watchClaimsForItem(itemId).map((rows) {
+      final uid = _auth.currentUser?.uid;
+      if (uid == null || otherUserId.isEmpty) return null;
+
+      for (final row in rows) {
+        final isParticipantPair =
+            (row.claimantId == uid && row.ownerId == otherUserId) ||
+            (row.claimantId == otherUserId && row.ownerId == uid);
+        if (isParticipantPair) return _toModel(row);
+      }
+      return null;
     });
   }
 
@@ -101,10 +141,12 @@ class ClaimRepository {
             : (user.email ?? 'Unknown User');
     final now = DateTime.now();
 
-    // The claim id matches the item id (see ClaimService), so this is
-    // idempotent even if pushed more than once.
+    // One claim per user per item. The deterministic id prevents the same
+    // claimant from creating duplicate requests while still allowing many
+    // different users to claim the same item.
+    final claimId = '${item.id}_${user.uid}';
     await _db.upsertLocalClaim(ClaimsCompanion.insert(
-      id: item.id,
+      id: claimId,
       itemId: Value(item.id),
       itemTitle: Value(item.title),
       itemImageUrl: Value(item.imageUrl),
@@ -167,7 +209,7 @@ class ClaimRepository {
         answer: answer,
         additionalDetails: additionalDetails,
       );
-      await _db.markClaimSynced(item.id);
+      await _db.markClaimSynced('${item.id}_${_auth.currentUser?.uid ?? ''}');
     } catch (_) {
       // Leave pendingCreate=true - retried on the next sync pass.
     }

@@ -2,8 +2,9 @@ import 'package:drift/drift.dart';
 
 /// Local cache of the `claims` Firestore collection. Mirrors [ClaimModel].
 ///
-/// Claims use the item's id as their document id (see `ClaimService`), so
-/// [id] here is also that deterministic id.
+/// Claims use a deterministic `${itemId}_${claimantId}` document id, so
+/// one user cannot create duplicate claims for the same item while multiple
+/// users can still claim the same item.
 @DataClassName('ClaimRow')
 class Claims extends Table {
   TextColumn get id => text()();
