@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../models/item_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/item_provider.dart';
+import 'potential_matches_screen.dart';
 
 class MyPostsScreen extends StatelessWidget {
   const MyPostsScreen({super.key});
@@ -38,6 +39,12 @@ class MyPostsScreen extends StatelessWidget {
       default:
         return Icons.help_outline;
     }
+  }
+
+  /// Claimed posts are already resolved, so there's nothing to match.
+  bool _canCheckMatches(ItemModel item) {
+    final status = item.status.toLowerCase();
+    return status == 'lost' || status == 'found' || status == 'pending';
   }
 
   void showEditMessage(BuildContext context, ItemModel item) {
@@ -332,6 +339,35 @@ class MyPostsScreen extends StatelessWidget {
                   ],
                 ),
               ),
+
+            // CHECK MATCHES
+            if (_canCheckMatches(item)) ...[
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PotentialMatchesScreen(
+                          itemId: item.id,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.manage_search),
+                  label: Text(
+                    item.status.toLowerCase() == 'lost'
+                        ? 'Check for Found Matches'
+                        : 'Check for Lost Matches',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+
+            const Divider(),
+            const SizedBox(height: 4),
 
             const Divider(),
             const SizedBox(height: 4),

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/notification_model.dart';
 import '../models/item_model.dart';
+import 'item_matching_service.dart';
 
 /// Handles reading and writing in-app notifications.
 ///
@@ -73,8 +74,13 @@ class NotificationService {
     await _notifications.add(notification.toMap());
   }
 
-  /// Notifies users who previously reported a Lost item in the same
-  /// category when a new Found item is posted.
+  /// Notifies users who previously reported a Lost item when a Found item
+  /// with a SIMILAR NAME in the SAME CATEGORY is posted.
+  ///
+  /// Both conditions are required, using the same keyword matcher as the
+  /// pre-submit check and the My Posts "Check Matches" screen, so a Lost
+  /// "Mobile Phone" is notified about a Found "iPhone 13" but not about a
+  /// Found "Laptop" or "Phone Charger" in the same category.
   ///
   /// This is intentionally done after the Found item is successfully written
   /// to Firestore. If the report was created offline, ItemRepository calls
@@ -85,43 +91,66 @@ class NotificationService {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return;
 
+    // Same category only (cheap server-side filter)...
     final snapshot = await _items
         .where('category', isEqualTo: foundItem.category)
         .get();
 
-    final notifiedUsers = <String>{};
     final foundCreatedAt =
         foundItem.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
 
-    for (final doc in snapshot.docs) {
-      final data = doc.data();
-      final ownerId = data['ownerId'] as String? ?? '';
-      final status = (data['status'] as String? ?? '').toLowerCase();
+    // ...then keep only Lost reports that existed before this Found item.
+    final lostCandidates = snapshot.docs
+        .map(ItemModel.fromDoc)
+        .where((lost) {
+      if (lost.status.toLowerCase() != 'lost') return false;
+      if (lost.ownerId.isEmpty) return false;
 
-      if (ownerId.isEmpty ||
-          ownerId == currentUser.uid ||
-          status != 'lost' ||
-          notifiedUsers.contains(ownerId)) {
-        continue;
-      }
-
-      final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+      final createdAt = lost.createdAt;
       if (createdAt != null && !createdAt.isBefore(foundCreatedAt)) {
-        // Only notify users whose Lost report existed before this Found item.
-        continue;
+        return false;
       }
+      return true;
+    })
+        .toList();
 
-      notifiedUsers.add(ownerId);
+    if (lostCandidates.isEmpty) return;
 
-      await createNotification(
-        recipientId: ownerId,
-        type: NotificationType.categoryMatch,
-        title: 'Possible Match Found',
-        message:
-            'A found item named "${foundItem.title}" was reported under '
-            'the "${foundItem.category}" category. Tap to view it.',
-        relatedItemId: foundItem.id,
-      );
+    // ...and finally require a similar name (shared keyword).
+    final matches = ItemMatchingService.findMatchesForDraft(
+      title: foundItem.title,
+      category: foundItem.category,
+      status: foundItem.status,
+      candidates: lostCandidates,
+      currentUserId: currentUser.uid,
+      excludeItemId: foundItem.id,
+      limit: 1000,
+    );
+
+    // Best match first, so each person gets at most one notification
+    // (for their closest Lost report).
+    final notifiedUsers = <String>{};
+
+    for (final match in matches) {
+      if (!match.sameCategory) continue;
+
+      final lost = match.item;
+      if (!notifiedUsers.add(lost.ownerId)) continue;
+
+      try {
+        await createNotification(
+          recipientId: lost.ownerId,
+          type: NotificationType.categoryMatch,
+          title: 'Possible Match Found',
+          message:
+          'A found item named "${foundItem.title}" in the '
+              '"${foundItem.category}" category looks similar to your lost '
+              'item "${lost.title}". Tap to view it.',
+          relatedItemId: foundItem.id,
+        );
+      } catch (_) {
+        // One failed notification shouldn't stop the others.
+      }
     }
   }
 

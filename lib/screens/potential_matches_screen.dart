@@ -8,6 +8,9 @@ import '../providers/item_provider.dart';
 import '../services/item_matching_service.dart';
 import 'item_details_screen.dart';
 
+/// Possible matches for one of the user's saved posts. Opened from
+/// My Posts -> "Check Matches". Every check first refreshes posts from the
+/// server (when online) so newly reported items are included.
 class PotentialMatchesScreen extends StatefulWidget {
   final String itemId;
 
@@ -23,6 +26,7 @@ class PotentialMatchesScreen extends StatefulWidget {
 class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
   bool _isLoading = true;
   List<ItemMatch> _matches = [];
+  DateTime? _lastChecked;
 
   @override
   void initState() {
@@ -31,22 +35,41 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
   }
 
   Future<void> _loadMatches() async {
+    if (!_isLoading) {
+      setState(() => _isLoading = true);
+    }
+
+    final provider = context.read<ItemProvider>();
+
     try {
-      final matches =
-          await context.read<ItemProvider>().findPotentialMatches(widget.itemId);
+      // Pull the latest posts first so "check again" really sees new
+      // reports. Errors (e.g. offline) are swallowed inside refreshHome,
+      // so this falls back to the local cache.
+      await provider.refreshHome();
+
+      final matches = await provider.findPotentialMatches(widget.itemId);
 
       if (!mounted) return;
       setState(() {
         _matches = matches;
+        _lastChecked = DateTime.now();
         _isLoading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _matches = [];
+        _lastChecked = DateTime.now();
         _isLoading = false;
       });
     }
+  }
+
+  String _formatTime(DateTime time) {
+    final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $period';
   }
 
   @override
@@ -59,18 +82,66 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Check again',
+            onPressed: _isLoading ? null : _loadMatches,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _matches.isEmpty
-              ? _buildEmptyState()
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _matches.length,
-                  itemBuilder: (context, index) {
-                    return _buildMatchCard(_matches[index]);
-                  },
-                ),
+          : RefreshIndicator(
+        onRefresh: _loadMatches,
+        child: _matches.isEmpty
+            ? ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [_buildEmptyState()],
+        )
+            : ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          itemCount: _matches.length + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) return _buildSummary();
+            return _buildMatchCard(_matches[index - 1]);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummary() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '${_matches.length} possible '
+                  '${_matches.length == 1 ? 'match' : 'matches'}',
+              style: TextStyle(
+                color: Colors.grey.shade800,
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+              ),
+            ),
+          ),
+          if (_lastChecked != null)
+            Text(
+              'Checked ${_formatTime(_lastChecked!)}',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _openItem(ItemModel item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ItemDetailsScreen(item: item)),
     );
   }
 
@@ -82,14 +153,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
       clipBehavior: Clip.antiAlias,
       elevation: 1,
       child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ItemDetailsScreen(item: item),
-            ),
-          );
-        },
+        onTap: () => _openItem(item),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -119,36 +183,35 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    item.category,
+                    '${item.category}  •  ${item.location}',
                     style: TextStyle(
                       color: Colors.grey.shade600,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  LinearProgressIndicator(
-                    value: match.score.clamp(0.0, 1.0).toDouble(),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${(match.score * 100).round()}% name match',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 12,
+                  if (item.date.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      item.date,
+                      style: TextStyle(color: Colors.grey.shade600),
                     ),
+                  ],
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      if (match.sameCategory)
+                        _reasonChip('Same category', Colors.blue),
+                      for (final keyword in match.sharedKeywords.take(3))
+                        _reasonChip('Keyword: $keyword', Colors.orange),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ItemDetailsScreen(item: item),
-                          ),
-                        );
-                      },
+                      onPressed: () => _openItem(item),
                       icon: const Icon(Icons.open_in_new),
                       label: const Text('View Item'),
                     ),
@@ -157,6 +220,24 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _reasonChip(String label, MaterialColor color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color.shade700,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -192,18 +273,19 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
   }
 
   Widget _typeBadge(ItemModel item) {
-    final isFound = item.status.toLowerCase() == 'found';
+    final isLost = item.status.toLowerCase() == 'lost';
+    final color = isLost ? Colors.red : Colors.green;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: (isFound ? Colors.green : Colors.red).withOpacity(.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        isFound ? 'FOUND' : 'LOST',
+        isLost ? 'LOST' : 'FOUND',
         style: TextStyle(
-          color: isFound ? Colors.green : Colors.red,
+          color: color,
           fontWeight: FontWeight.bold,
           fontSize: 11,
         ),
@@ -218,6 +300,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            const SizedBox(height: 60),
             Icon(
               Icons.search_off,
               size: 76,
@@ -234,14 +317,21 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'We checked the same category and similar item names. '
-              'You can check again later as new reports are added.',
+              'We checked for reports with a similar item name. '
+                  'New reports are added all the time, so check again later.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.grey.shade600,
                 height: 1.4,
               ),
             ),
+            if (_lastChecked != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Last checked ${_formatTime(_lastChecked!)}',
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+              ),
+            ],
             const SizedBox(height: 22),
             OutlinedButton.icon(
               onPressed: _loadMatches,

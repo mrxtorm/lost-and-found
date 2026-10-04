@@ -109,6 +109,25 @@ class ItemRepository {
     );
   }
 
+  /// Finds possible matches for a report that hasn't been submitted yet.
+  /// Reads the local cache, so it also works offline.
+  Future<List<ItemMatch>> findMatchesForDraft({
+    required String title,
+    required String category,
+    required String status,
+    String? currentUserId,
+  }) async {
+    final rows = await _db.getItemsForMatching();
+
+    return ItemMatchingService.findMatchesForDraft(
+      title: title,
+      category: category,
+      status: status,
+      candidates: rows.map(_toModel),
+      currentUserId: currentUserId,
+    );
+  }
+
   // ---------------------------------------------------------------------
   // WRITES - saved locally first, then pushed opportunistically.
   // ---------------------------------------------------------------------

@@ -169,6 +169,19 @@ class ItemProvider with ChangeNotifier {
     );
   }
 
+  Future<List<ItemMatch>> findMatchesForDraft({
+    required String title,
+    required String category,
+    required String status,
+  }) {
+    return _itemRepository.findMatchesForDraft(
+      title: title,
+      category: category,
+      status: status,
+      currentUserId: _currentUserId,
+    );
+  }
+
   Future<String> reportItem({
     required String title,
     required String description,

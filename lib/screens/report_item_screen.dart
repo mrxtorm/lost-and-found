@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/item_provider.dart';
-import 'potential_matches_screen.dart';
+import 'draft_matches_screen.dart';
 
 class ReportItemScreen extends StatefulWidget {
   const ReportItemScreen({super.key});
@@ -172,7 +172,35 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
     });
 
     try {
-      final itemId = await context.read<ItemProvider>().reportItem(
+      // 1) Check for possible matches BEFORE anything is posted.
+      final matches = await context.read<ItemProvider>().findMatchesForDraft(
+        title: itemNameController.text.trim(),
+        category: selectedCategory!,
+        status: selectedType,
+      );
+
+      if (!mounted) return;
+
+      if (matches.isNotEmpty) {
+        final shouldContinue = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DraftMatchesScreen(
+              matches: matches,
+              reportType: selectedType,
+            ),
+          ),
+        );
+
+        if (!mounted) return;
+
+        // User went back to edit (or pressed the system back button).
+        // Nothing has been saved yet, so just return to the form.
+        if (shouldContinue != true) return;
+      }
+
+      // 2) No matches, or the user chose to continue: submit the report.
+      await context.read<ItemProvider>().reportItem(
         title: itemNameController.text.trim(),
         description: descriptionController.text.trim(),
         category: selectedCategory!,
@@ -187,24 +215,8 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
 
       if (!mounted) return;
 
-      // The item is already saved locally, so matching works immediately
-      // even when the report was created without internet.
-      final matches =
-          await context.read<ItemProvider>().findPotentialMatches(itemId);
-
-      if (!mounted) return;
-
-      if (matches.isNotEmpty) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PotentialMatchesScreen(itemId: itemId),
-          ),
-        );
-      } else {
-        showMessage("Report submitted successfully.");
-        Navigator.pop(context);
-      }
+      showMessage("Report submitted successfully.");
+      Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
       showMessage("Failed to submit report: $e");

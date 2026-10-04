@@ -1,7 +1,14 @@
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../providers/auth_provider.dart';
+import '../providers/chat_provider.dart';
+import '../services/conversation_loader.dart';
+import 'conversation_screen.dart';
 
 import '../data/local/app_database.dart';
 import '../models/item_model.dart';
@@ -148,25 +155,12 @@ class NotificationsScreen extends StatelessWidget {
         final item = snapshot.data;
 
         return GestureDetector(
-          onTap: () async {
-            if (!notification.isRead) {
-              await notificationProvider.markAsRead(notification.id);
-            }
-
-            if (!context.mounted) return;
-
-            if (item != null) {
-              final model = _rowToModel(item);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ItemDetailsScreen(item: model),
-                ),
-              );
-            } else {
-              _showNotificationDetails(context, notification, null);
-            }
-          },
+          onTap: () => _handleTap(
+            context,
+            notificationProvider,
+            notification,
+            item,
+          ),
           child: Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(12),
@@ -257,6 +251,162 @@ class NotificationsScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  // ============================================================
+  // TAP HANDLING
+  // ============================================================
+
+  Future<void> _handleTap(
+      BuildContext context,
+      NotificationProvider notificationProvider,
+      NotificationModel notification,
+      ItemRow? cachedItem,
+      ) async {
+    if (!notification.isRead) {
+      await notificationProvider.markAsRead(notification.id);
+    }
+
+    if (!context.mounted) return;
+
+    switch (notification.type) {
+    // Claim conversations: go straight to the chat.
+      case NotificationType.claimReceived:
+      case NotificationType.claimRejected:
+      case NotificationType.claimUpdate:
+        final opened = await _openConversation(
+          context,
+          notification,
+          cachedItem,
+        );
+        if (opened) return;
+        break;
+
+    // Approved: the post and conversation were removed when the claim
+    // was accepted, so there is nothing to open.
+      case NotificationType.claimApproved:
+        _showNotificationDetails(context, notification, null);
+        return;
+
+      default:
+        break;
+    }
+
+    if (!context.mounted) return;
+    await _openPost(context, notification, cachedItem);
+  }
+
+  /// Opens the related post. Uses the local cache first, then Firestore.
+  Future<void> _openPost(
+      BuildContext context,
+      NotificationModel notification,
+      ItemRow? cachedItem,
+      ) async {
+    ItemModel? model = cachedItem != null ? _rowToModel(cachedItem) : null;
+    model ??= await _fetchItem(notification.relatedItemId);
+
+    if (!context.mounted) return;
+
+    if (model == null) {
+      // Deleted, claimed, or not reachable right now.
+      _showNotificationDetails(context, notification, null);
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ItemDetailsScreen(item: model!)),
+    );
+  }
+
+  /// Opens the claim conversation between the current user and the other
+  /// person. Returns false if it can't be opened (caller falls back to
+  /// the post).
+  Future<bool> _openConversation(
+      BuildContext context,
+      NotificationModel notification,
+      ItemRow? cachedItem,
+      ) async {
+    final me = context.read<AuthProvider>().user?.uid;
+    final chat = context.read<ChatProvider>();
+    final itemId = notification.relatedItemId;
+
+    if (me == null || itemId == null || itemId.isEmpty) return false;
+
+    final otherId = await _otherParticipantId(
+      notification,
+      itemId,
+      cachedItem,
+    );
+    if (otherId == null || otherId.isEmpty || otherId == me) return false;
+
+    // Same id format ChatService.getOrCreateConversation uses.
+    final ids = [me, otherId]..sort();
+    final conversationId = '${itemId}_${ids.join('_')}';
+
+    if (chat.conversationById(conversationId) == null) {
+      final result = await ConversationLoader().load(conversationId);
+
+      // Gone (e.g. claim already resolved) or not ours: use the fallback.
+      // Other errors (such as being offline) still try to open the chat.
+      if (result.status == ConversationLoadStatus.notFound ||
+          result.status == ConversationLoadStatus.forbidden) {
+        return false;
+      }
+    }
+
+    if (!context.mounted) return false;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ConversationScreen(conversationId: conversationId),
+      ),
+    );
+    return true;
+  }
+
+  /// Works out who is on the other side of the conversation.
+  Future<String?> _otherParticipantId(
+      NotificationModel notification,
+      String itemId,
+      ItemRow? cachedItem,
+      ) async {
+    // The finder was notified: the other person is the claimant, whose uid
+    // is the tail of the claim id ("{itemId}_{claimantUid}").
+    if (notification.type == NotificationType.claimReceived) {
+      final claimId = notification.relatedClaimId ?? '';
+      final prefix = '${itemId}_';
+      if (claimId.startsWith(prefix)) {
+        return claimId.substring(prefix.length);
+      }
+      return null;
+    }
+
+    // The claimant was notified: the other person is the item's finder.
+    if (cachedItem != null && cachedItem.ownerId.isNotEmpty) {
+      return cachedItem.ownerId;
+    }
+
+    final item = await _fetchItem(itemId);
+    return item?.ownerId;
+  }
+
+  Future<ItemModel?> _fetchItem(String? itemId) async {
+    if (itemId == null || itemId.isEmpty) return null;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('items')
+          .doc(itemId)
+          .get()
+          .timeout(const Duration(seconds: 6));
+
+      if (!doc.exists) return null;
+      return ItemModel.fromDoc(doc);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<ItemRow?> _relatedItem(
