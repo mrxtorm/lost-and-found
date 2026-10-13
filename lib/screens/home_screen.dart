@@ -2,350 +2,210 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/item_provider.dart';
+import '../theme/app_theme.dart';
 import '../widgets/category_card.dart';
 import '../widgets/item_card.dart';
+import '../widgets/item_ui.dart';
 import '../widgets/search_bar_widget.dart';
-import 'item_details_screen.dart';
-import 'messages_screen.dart';
 import 'report_item_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  static const List<_Category> _categories = [
+    _Category('Electronics', Icons.phone_android_rounded, Color(0xFF2F5BEA)),
+    _Category('Wallet', Icons.account_balance_wallet_rounded, Color(0xFFE08A00)),
+    _Category('ID', Icons.badge_rounded, Color(0xFF1F9D68)),
+    _Category('Keys', Icons.key_rounded, Color(0xFFE5484D)),
+    _Category('Books', Icons.menu_book_rounded, Color(0xFF7C3AED)),
+    _Category('Others', Icons.category_rounded, Color(0xFF0891B2)),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final itemProvider = context.watch<ItemProvider>();
-    final items = itemProvider.homeItems;
-    final isLoading = itemProvider.isLoadingAll;
+    final provider = context.watch<ItemProvider>();
+    final items = provider.homeItems;
+    final isLoading = provider.isLoadingAll;
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-
-      // =========================
-      // APP BAR
-      // =========================
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        surfaceTintColor: Colors.white,
-        title: const Text(
-          "Campus Lost & Found",
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-          ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text(
+          'New post',
+          style: TextStyle(fontWeight: FontWeight.w700),
         ),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.notifications_none,
-              color: Colors.black87,
-            ),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(
-              Icons.account_circle,
-              color: Colors.black87,
-            ),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.chat_bubble_outline),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const MessagesScreen(),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-
-      // =========================
-      // REPORT ITEM BUTTON
-      // =========================
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.blue,
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => const ReportItemScreen(),
-            ),
+            MaterialPageRoute(builder: (_) => const ReportItemScreen()),
           );
         },
-        child: const Icon(
-          Icons.add,
-          color: Colors.white,
-        ),
       ),
-
-      // =========================
-      // BODY
-      // =========================
       body: RefreshIndicator(
-        onRefresh: itemProvider.refreshHome,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        onRefresh: provider.refreshHome,
+        child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            // SEARCH BAR
-            SearchBarWidget(
-              onChanged: (value) => itemProvider.setSearchQuery(value),
+          slivers: [
+            // Title hides while scrolling down, returns on scroll up.
+            const SliverAppBar(
+              floating: true,
+              snap: true,
+              titleSpacing: 20,
+              title: Text('Campus Lost & Found'),
             ),
 
-            const SizedBox(height: 20),
+            // SEARCH
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                child: SearchBarWidget(
+                  query: provider.searchQuery,
+                  onChanged: provider.setSearchQuery,
+                ),
+              ),
+            ),
+
+            // LOST / FOUND
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                child: SegmentedTabs(
+                  options: const ['All', 'Lost', 'Found'],
+                  selected: provider.selectedStatus,
+                  onChanged: provider.setSelectedStatus,
+                ),
+              ),
+            ),
 
             // CATEGORIES
-            const Text(
-              "Categories",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 64,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  itemCount: _categories.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final category = _categories[index];
+                    return CategoryCard(
+                      icon: category.icon,
+                      title: category.name,
+                      color: category.color,
+                      isSelected: provider.selectedCategory == category.name,
+                      onTap: () =>
+                          provider.toggleSelectedCategory(category.name),
+                    );
+                  },
+                ),
               ),
             ),
 
-            const SizedBox(height: 15),
-
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  CategoryCard(
-                    icon: Icons.phone_android,
-                    title: "Electronics",
-                    color: Colors.blue,
-                    isSelected: itemProvider.selectedCategory == "Electronics",
-                    onTap: () => itemProvider.toggleSelectedCategory("Electronics"),
-                  ),
-                  const SizedBox(width: 12),
-                  CategoryCard(
-                    icon: Icons.account_balance_wallet,
-                    title: "Wallet",
-                    color: Colors.orange,
-                    isSelected: itemProvider.selectedCategory == "Wallet",
-                    onTap: () => itemProvider.toggleSelectedCategory("Wallet"),
-                  ),
-                  const SizedBox(width: 12),
-                  CategoryCard(
-                    icon: Icons.badge,
-                    title: "ID",
-                    color: Colors.green,
-                    isSelected: itemProvider.selectedCategory == "ID",
-                    onTap: () => itemProvider.toggleSelectedCategory("ID"),
-                  ),
-                  const SizedBox(width: 12),
-                  CategoryCard(
-                    icon: Icons.key,
-                    title: "Keys",
-                    color: Colors.red,
-                    isSelected: itemProvider.selectedCategory == "Keys",
-                    onTap: () => itemProvider.toggleSelectedCategory("Keys"),
-                  ),
-                  const SizedBox(width: 12),
-                  CategoryCard(
-                    icon: Icons.book,
-                    title: "Books",
-                    color: Colors.purple,
-                    isSelected: itemProvider.selectedCategory == "Books",
-                    onTap: () => itemProvider.toggleSelectedCategory("Books"),
-                  ),
-                  const SizedBox(width: 12),
-                  CategoryCard(
-                    icon: Icons.category,
-                    title: "Others",
-                    color: Colors.teal,
-                    isSelected: itemProvider.selectedCategory == "Others",
-                    onTap: () => itemProvider.toggleSelectedCategory("Others"),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            // RECENT ITEMS
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  "Recent Items",
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  "${items.length} item${items.length == 1 ? '' : 's'}",
-                  style: const TextStyle(
-                    color: Colors.blue,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 15),
-            const SizedBox(height: 10),
-
-            // STATUS FILTER
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildStatusFilter(context, itemProvider, "All"),
-                  _buildStatusFilter(context, itemProvider, "Lost"),
-                  _buildStatusFilter(context, itemProvider, "Found"),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // ACTIVE FILTER INFO
-            if (itemProvider.hasActiveHomeFilters)
-              Container(
-                margin: const EdgeInsets.only(bottom: 15),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.filter_alt_outlined,
-                      size: 18,
-                      color: Colors.blue,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _getFilterDescription(itemProvider),
-                        style: const TextStyle(
-                          color: Colors.blue,
-                          fontWeight: FontWeight.w600,
+            // RESULT COUNT + CLEAR (only while filtering)
+            if (provider.hasActiveHomeFilters)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 12, 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${items.length} result${items.length == 1 ? '' : 's'}',
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                    GestureDetector(
-                      onTap: itemProvider.clearHomeFilters,
-                      child: const Text(
-                        "Clear",
-                        style: TextStyle(
-                          color: Colors.blue,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      TextButton(
+                        onPressed: provider.clearHomeFilters,
+                        child: const Text('Clear filters'),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
 
-            // ITEMS
+            // FEED
             if (isLoading && items.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 60),
+              const SliverFillRemaining(
+                hasScrollBody: false,
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (items.isEmpty)
-              _buildEmptyState()
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _EmptyState(filtered: provider.hasActiveHomeFilters),
+              )
             else
-              ListView.builder(
+              SliverList.builder(
                 itemCount: items.length,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  return ItemCard(
-                    item: item,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ItemDetailsScreen(item: item),
-                        ),
-                      );
-                    },
-                  );
-                },
+                itemBuilder: (context, index) => ItemCard(item: items[index]),
               ),
 
-            const SizedBox(height: 90),
+            const SliverToBoxAdapter(child: SizedBox(height: 96)),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildStatusFilter(
-      BuildContext context,
-      ItemProvider itemProvider,
-      String status,
-      ) {
-    final isSelected = itemProvider.selectedStatus == status;
+class _Category {
+  final String name;
+  final IconData icon;
+  final Color color;
 
+  const _Category(this.name, this.icon, this.color);
+}
+
+class _EmptyState extends StatelessWidget {
+  final bool filtered;
+
+  const _EmptyState({required this.filtered});
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Text(status),
-        selected: isSelected,
-        onSelected: (_) => itemProvider.setSelectedStatus(status),
-        selectedColor: Colors.blue,
-        backgroundColor: Colors.white,
-        labelStyle: TextStyle(
-          color: isSelected ? Colors.white : Colors.black87,
-          fontWeight: FontWeight.w600,
-        ),
-        side: BorderSide(color: Colors.grey.shade300),
-      ),
-    );
-  }
-
-  String _getFilterDescription(ItemProvider itemProvider) {
-    final filters = <String>[];
-
-    if (itemProvider.searchQuery.isNotEmpty) {
-      filters.add('Search: "${itemProvider.searchQuery}"');
-    }
-    if (itemProvider.selectedStatus != "All") {
-      filters.add("Status: ${itemProvider.selectedStatus}");
-    }
-    if (itemProvider.selectedCategory != "All") {
-      filters.add("Category: ${itemProvider.selectedCategory}");
-    }
-
-    return filters.join(" • ");
-  }
-
-  Widget _buildEmptyState() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.search_off,
-            size: 70,
-            color: Colors.grey.shade400,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            "No items found",
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              filtered ? Icons.search_off_rounded : Icons.inventory_2_outlined,
+              size: 34,
+              color: AppColors.primary,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 18),
           Text(
-            "Try a different search or filter.",
+            filtered ? 'No items match' : 'No reports yet',
+            style: const TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            filtered
+                ? 'Try a different word, or clear the filters.'
+                : 'Lost and found items will show up here.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600),
+            style: const TextStyle(color: AppColors.muted, height: 1.4),
           ),
         ],
       ),

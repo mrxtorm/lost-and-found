@@ -4,7 +4,76 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ============================================================
-    // ITEMS
+    // HELPERS
+    // ============================================================
+
+    // True while the signed-in user has an active temporary POSTING ban.
+    // bannedUntil is written only by the moderation Worker.
+    function isBanned() {
+      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(userPath)
+        && get(userPath).data.get('bannedUntil', null) != null
+        && get(userPath).data.bannedUntil > request.time;
+    }
+
+
+    // ============================================================
+    // USERS (moderation state: offenseCount, bannedUntil)
+    // Server-managed. A user can read only their own document so the
+    // app can show warnings/ban status. Nobody can write from the app.
+    // ============================================================
+
+    match /users/{userId} {
+      allow get: if request.auth != null && request.auth.uid == userId;
+      allow list: if false;
+      allow write: if false;
+    }
+
+
+    // ============================================================
+    // REPORTS
+    // One report per user per post (id = itemId_reporterUid).
+    // Status changes (pending -> removed/dismissed) are made only by
+    // the moderation Worker.
+    // ============================================================
+
+    match /reports/{reportId} {
+
+      allow get: if request.auth != null
+        && (
+          resource == null
+          || resource.data.reporterId == request.auth.uid
+        );
+
+      allow list: if request.auth != null
+        && resource.data.reporterId == request.auth.uid;
+
+      allow create: if request.auth != null
+        && reportId == request.resource.data.itemId + '_' + request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'itemId', 'reporterId', 'reason', 'details', 'status', 'createdAt'
+        ])
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.reason in [
+          'spam', 'inappropriate', 'harassment', 'scam', 'other'
+        ]
+        && request.resource.data.details is string
+        && request.resource.data.details.size() <= 300
+        && request.resource.data.createdAt == request.time
+        && exists(
+          /databases/$(database)/documents/items/$(request.resource.data.itemId)
+        )
+        && get(
+          /databases/$(database)/documents/items/$(request.resource.data.itemId)
+        ).data.ownerId != request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
+
+    // ============================================================
+    // ITEMS  (the only place the posting ban applies)
     // ============================================================
 
     match /items/{itemId} {
@@ -12,24 +81,26 @@ service cloud.firestore {
       // All authenticated users can see Lost/Found posts.
       allow read: if request.auth != null;
 
-      // A user can create only their own post.
+      // A user can create only their own post, and not while banned.
       allow create: if request.auth != null
+        && !isBanned()
         && request.resource.data.ownerId == request.auth.uid;
 
-      // Only the owner can update their item.
+      // Only the owner can update their item, and not while banned.
       // Ownership cannot be transferred.
       allow update: if request.auth != null
+        && !isBanned()
         && resource.data.ownerId == request.auth.uid
         && request.resource.data.ownerId == request.auth.uid;
 
-      // Only the owner can delete their item.
+      // Only the owner can delete their item (allowed even while banned).
       allow delete: if request.auth != null
         && resource.data.ownerId == request.auth.uid;
     }
 
 
     // ============================================================
-    // CLAIMS
+    // CLAIMS  (not affected by the posting ban)
     // ============================================================
 
     match /claims/{claimId} {
@@ -127,10 +198,26 @@ service cloud.firestore {
       allow read: if request.auth != null
         && resource.data.recipientId == request.auth.uid;
 
+      // Users can only mark their own notifications as read.
       allow update: if request.auth != null
-        && resource.data.recipientId == request.auth.uid;
+        && resource.data.recipientId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'isRead'
+        ]);
 
-      allow create: if request.auth != null;
+      // Clients may create only the app's normal notification types.
+      // Warning/ban notices (moderation_*) can be created only by the
+      // moderation Worker, so they cannot be faked.
+      allow create: if request.auth != null
+        && request.resource.data.type in [
+          'match',
+          'category_match',
+          'claim_received',
+          'claim_approved',
+          'claim_rejected',
+          'claim_update',
+          'message'
+        ];
 
       allow delete: if request.auth != null
         && resource.data.recipientId == request.auth.uid;
@@ -138,7 +225,7 @@ service cloud.firestore {
 
 
     // ============================================================
-    // CONVERSATIONS
+    // CONVERSATIONS  (not affected by the posting ban)
     // ============================================================
 
     match /conversations/{conversationId} {
@@ -159,7 +246,6 @@ service cloud.firestore {
         );
 
       // Queries (where participantIds arrayContains uid).
-      // Kept simple so Firestore can prove every result is readable.
       allow list: if request.auth != null
         && request.auth.uid in resource.data.participantIds;
 
@@ -258,7 +344,7 @@ service cloud.firestore {
 
 
     // ============================================================
-    // EVERYTHING ELSE
+    // EVERYTHING ELSE (includes the server-only moderationLog)
     // ============================================================
 
     match /{document=**} {
