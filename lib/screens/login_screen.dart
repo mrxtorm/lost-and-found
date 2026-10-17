@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/item_ui.dart';
+
 import '../models/remembered_account.dart';
 import '../providers/auth_provider.dart';
 import 'forgot_password_screen.dart';
@@ -186,7 +189,10 @@ class _LoginScreenState extends State<LoginScreen> {
     if (account.photoUrl != null && account.photoUrl!.isNotEmpty) {
       return CircleAvatar(
         radius: radius,
-        backgroundImage: NetworkImage(account.photoUrl!),
+        backgroundImage: CachedNetworkImageProvider(
+          optimizedImageUrl(account.photoUrl!, width: 200),
+          maxWidth: 200,
+        ),
         backgroundColor: color.shade50,
       );
     }

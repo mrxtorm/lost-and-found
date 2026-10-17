@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/item_ui.dart';
+
 import '../data/local/app_database.dart';
 import '../models/item_model.dart';
 import 'claim_item_screen.dart';
@@ -508,14 +511,17 @@ class _ConversationScreenState extends State<ConversationScreen> {
             clipBehavior: Clip.antiAlias,
             child: conversation.itemImageUrl.isEmpty
                 ? const Icon(Icons.image_outlined, color: Colors.grey)
-                : Image.network(
-                    conversation.itemImageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.image_outlined,
-                      color: Colors.grey,
-                    ),
-                  ),
+                : Image(
+              image: CachedNetworkImageProvider(
+                optimizedImageUrl(conversation.itemImageUrl, width: 300),
+                maxWidth: 300,
+              ),
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.image_outlined,
+                color: Colors.grey,
+              ),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(

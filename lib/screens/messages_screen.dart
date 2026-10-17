@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/item_ui.dart';
+
 import '../models/conversation_model.dart';
 import '../providers/chat_provider.dart';
 import 'conversation_screen.dart';
@@ -274,8 +277,11 @@ class _ItemImage extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: url.isEmpty
           ? const Icon(Icons.image_outlined, color: Colors.grey)
-          : Image.network(
-        url,
+          : Image(
+        image: CachedNetworkImageProvider(
+          optimizedImageUrl(url, width: 300),
+          maxWidth: 300,
+        ),
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => const Icon(
           Icons.image_outlined,

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/item_ui.dart';
+
 import '../models/item_model.dart';
 import '../providers/claim_provider.dart';
 
@@ -545,6 +548,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
         width: 85,
         height: 85,
         fit: BoxFit.cover,
+        cacheWidth: 300,
         errorBuilder: (context, error, stackTrace) => _imagePlaceholder(),
       );
     }
@@ -553,8 +557,11 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
       return _imagePlaceholder();
     }
 
-    return Image.network(
-      widget.item.imageUrl,
+    return Image(
+      image: CachedNetworkImageProvider(
+        optimizedImageUrl(widget.item.imageUrl, width: 300),
+        maxWidth: 300,
+      ),
       width: 85,
       height: 85,
       fit: BoxFit.cover,

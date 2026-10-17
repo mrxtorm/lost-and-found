@@ -5,6 +5,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/item_ui.dart';
+
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../services/conversation_loader.dart';
@@ -425,8 +428,11 @@ class NotificationsScreen extends StatelessWidget {
     if (item != null && item.imageUrl.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          item.imageUrl,
+        child: Image(
+          image: CachedNetworkImageProvider(
+            optimizedImageUrl(item.imageUrl, width: 300),
+            maxWidth: 300,
+          ),
           width: 76,
           height: 76,
           fit: BoxFit.cover,
@@ -445,6 +451,7 @@ class NotificationsScreen extends StatelessWidget {
           width: 76,
           height: 76,
           fit: BoxFit.cover,
+          cacheWidth: 300,
           errorBuilder: (_, _, _) => _imagePlaceholder(color),
         ),
       );

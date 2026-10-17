@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../models/item_model.dart';
 import '../theme/app_theme.dart';
@@ -37,10 +38,31 @@ String timeAgo(DateTime? time) {
 
 /// The best available photo for an item (uploaded one, else the local
 /// offline copy), or null when the post has no photo.
-ImageProvider? itemImageProvider(ItemModel item) {
-  if (item.imageUrl.isNotEmpty) return NetworkImage(item.imageUrl);
+/// Asks Cloudinary for a resized, compressed copy instead of the original.
+/// Works on already-uploaded photos because it only rewrites the URL.
+String optimizedImageUrl(String url, {int width = 1000}) {
+  const marker = '/image/upload/';
+  if (!url.contains('res.cloudinary.com') ||
+      !url.contains(marker) ||
+      url.contains('q_auto')) {
+    return url; // not Cloudinary, or already transformed
+  }
+  return url.replaceFirst(marker, '${marker}w_$width,c_limit,q_auto,f_auto/');
+}
+
+/// The best available photo for an item (uploaded one, else the local
+/// offline copy), or null when the post has no photo.
+ImageProvider? itemImageProvider(ItemModel item, {int width = 1000}) {
+  if (item.imageUrl.isNotEmpty) {
+    return CachedNetworkImageProvider(
+      optimizedImageUrl(item.imageUrl, width: width),
+      maxWidth: width,
+    );
+  }
   final path = item.localImagePath;
-  if (path != null && path.isNotEmpty) return FileImage(File(path));
+  if (path != null && path.isNotEmpty) {
+    return ResizeImage(FileImage(File(path)), width: width);
+  }
   return null;
 }
 
@@ -71,7 +93,7 @@ class ItemImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = itemImageProvider(item);
+    final provider = itemImageProvider(item, width: 800);
     if (provider == null) return const ImagePlaceholder();
 
     return ColoredBox(

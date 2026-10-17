@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/item_ui.dart';
 
 import '../models/item_model.dart';
 import '../services/item_matching_service.dart';
@@ -201,8 +203,11 @@ class DraftMatchesScreen extends StatelessWidget {
 
     Widget child;
     if (item.imageUrl.isNotEmpty) {
-      child = Image.network(
-        item.imageUrl,
+      child = Image(
+        image: CachedNetworkImageProvider(
+          optimizedImageUrl(item.imageUrl, width: 300),
+          maxWidth: 300,
+        ),
         fit: BoxFit.cover,
         errorBuilder: (_, _, _) => placeholder(),
       );
@@ -211,6 +216,7 @@ class DraftMatchesScreen extends StatelessWidget {
       child = Image.file(
         File(item.localImagePath!),
         fit: BoxFit.cover,
+        cacheWidth: 300,
         errorBuilder: (_, _, _) => placeholder(),
       );
     } else {

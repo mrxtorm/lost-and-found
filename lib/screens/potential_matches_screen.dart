@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/item_ui.dart';
 
 import '../models/item_model.dart';
 import '../providers/item_provider.dart';
@@ -245,8 +247,11 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
 
   Widget _buildImage(ItemModel item) {
     if (item.imageUrl.isNotEmpty) {
-      return Image.network(
-        item.imageUrl,
+      return Image(
+        image: CachedNetworkImageProvider(
+          optimizedImageUrl(item.imageUrl, width: 800),
+          maxWidth: 800,
+        ),
         fit: BoxFit.cover,
         errorBuilder: (_, _, _) => _placeholder(),
       );
@@ -256,6 +261,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
       return Image.file(
         File(item.localImagePath!),
         fit: BoxFit.cover,
+        cacheWidth: 800,
         errorBuilder: (_, _, _) => _placeholder(),
       );
     }
