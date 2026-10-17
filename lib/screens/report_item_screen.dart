@@ -28,7 +28,8 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
   String? selectedLocation;
   late DateTime selectedDate;
 
-  File? selectedImage;
+  static const int _maxPhotos = 5;
+  final List<File> selectedImages = [];
 
   final ImagePicker imagePicker = ImagePicker();
   bool isSubmitting = false;
@@ -90,16 +91,18 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
   // PROGRESS + VALIDATION
   // ---------------------------------------------------------------------
 
-  bool get _hasPhoto => selectedImage != null;
+  bool get _hasPhoto => selectedImages.isNotEmpty;
   bool get _hasName => itemNameController.text.trim().isNotEmpty;
   bool get _hasDescription => descriptionController.text.trim().isNotEmpty;
   bool get _hasQuestion =>
       verificationQuestionController.text.trim().isNotEmpty;
 
-  int get _totalRequired => _isFound ? 6 : 5;
+  // A photo is mandatory for found items only; lost-item reports may be
+  // posted without one.
+  int get _totalRequired => _isFound ? 6 : 4;
 
   int get _completed => [
-    _hasPhoto,
+    if (_isFound) _hasPhoto,
     _hasName,
     selectedCategory != null,
     selectedLocation != null,
@@ -116,7 +119,9 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
           _hasQuestion;
 
   String? get _photoError =>
-      _showErrors && !_hasPhoto ? 'Add a photo so people can recognize it.' : null;
+      _showErrors && _isFound && !_hasPhoto
+          ? 'Add at least one photo so the owner can recognize it.'
+          : null;
 
   String? get _nameError =>
       _showErrors && !_hasName ? 'Enter the item name.' : null;
@@ -204,15 +209,40 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
   // ---------------------------------------------------------------------
 
   Future<void> _pickPhoto(ImageSource source) async {
-    try {
-      final XFile? image = await imagePicker.pickImage(
-        source: source,
-        imageQuality: 80,
-        maxWidth: 1600,
-      );
+    final remaining = _maxPhotos - selectedImages.length;
+    if (remaining <= 0) {
+      showMessage('You can add up to $_maxPhotos photos.');
+      return;
+    }
 
-      if (image != null && mounted) {
-        setState(() => selectedImage = File(image.path));
+    try {
+      final List<XFile> picked;
+      // pickMultiImage requires a limit of at least 2, so a single free slot
+      // uses the regular single-image gallery picker.
+      if (source == ImageSource.camera || remaining == 1) {
+        final image = await imagePicker.pickImage(
+          source: source == ImageSource.camera
+              ? ImageSource.camera
+              : ImageSource.gallery,
+          imageQuality: 80,
+          maxWidth: 1600,
+        );
+        picked = image == null ? const [] : [image];
+      } else {
+        picked = await imagePicker.pickMultiImage(
+          imageQuality: 80,
+          maxWidth: 1600,
+          limit: remaining,
+        );
+      }
+
+      if (picked.isEmpty || !mounted) return;
+
+      final files = picked.take(remaining).map((x) => File(x.path)).toList();
+      setState(() => selectedImages.addAll(files));
+
+      if (picked.length > remaining) {
+        showMessage('Only $_maxPhotos photos are allowed per post.');
       }
     } catch (_) {
       if (!mounted) return;
@@ -257,8 +287,8 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
     if (source != null) await _pickPhoto(source);
   }
 
-  void removePhoto() {
-    setState(() => selectedImage = null);
+  void removePhoto(int index) {
+    setState(() => selectedImages.removeAt(index));
   }
 
   // ---------------------------------------------------------------------
@@ -311,7 +341,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
         location: selectedLocation!,
         date: formattedDate,
         status: selectedType,
-        imageFile: selectedImage,
+        imageFiles: List<File>.of(selectedImages),
         verificationQuestion:
         _isFound ? verificationQuestionController.text.trim() : null,
       );
@@ -409,10 +439,12 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                     _FormSection(
                       key: _photoKey,
                       number: 2,
-                      label: 'Photo',
+                      label: _isFound ? 'Photos' : 'Photos (optional)',
                       helper: _isFound
-                          ? 'A clear photo helps the owner recognize it.'
-                          : 'A photo helps people recognize your item.',
+                          ? 'A clear photo is required so the owner can '
+                              'recognize it. Add up to $_maxPhotos.'
+                          : 'No photo of it? You can still post. Photos help '
+                              'people recognize your item (up to $_maxPhotos).',
                       done: _hasPhoto,
                       error: _photoError,
                       child: Column(
@@ -750,9 +782,11 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
               ],
             )
           else
-            const Text(
-              'All fields are required.',
-              style: TextStyle(fontSize: 15, color: AppColors.muted),
+            Text(
+              _isFound
+                  ? 'All fields are required.'
+                  : 'Photos are optional. All other fields are required.',
+              style: const TextStyle(fontSize: 15, color: AppColors.muted),
             ),
         ],
       ),
@@ -886,9 +920,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
   }
 
   Widget _buildPhoto() {
-    final image = selectedImage;
-
-    if (image == null) {
+    if (selectedImages.isEmpty) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
@@ -916,9 +948,9 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'Add a photo',
-              style: TextStyle(
+            Text(
+              _isFound ? 'Add photos' : 'Add photos (optional)',
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
                 color: AppColors.ink,
@@ -961,82 +993,128 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
       );
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: AspectRatio(
-        aspectRatio: 4 / 3,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            GestureDetector(
-              onTap: () => FullScreenImageViewer.show(
-                context,
-                image: FileImage(image),
-                heroTag: 'draft_photo',
-                caption: itemNameController.text.trim(),
-              ),
-              child: Hero(
-                tag: 'draft_photo',
-                child: Image.file(image, fit: BoxFit.cover),
-              ),
-            ),
-            Positioned(
-              top: 10,
-              right: 10,
-              child: SizedBox.square(
-                dimension: 44,
-                child: Material(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: removePhoto,
-                    child: const Icon(
-                      Icons.close_rounded,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 10,
-              bottom: 10,
-              child: Material(
-                color: Colors.black.withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(24),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(24),
+    final canAddMore = selectedImages.length < _maxPhotos;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 150,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: selectedImages.length + (canAddMore ? 1 : 0),
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (context, i) {
+              if (i == selectedImages.length) {
+                return InkWell(
+                  borderRadius: BorderRadius.circular(16),
                   onTap: _chooseSource,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  child: Container(
+                    width: 112,
+                    decoration: BoxDecoration(
+                      color: AppColors.bg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.line),
+                    ),
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.photo_camera_outlined,
-                          color: Colors.white,
-                          size: 20,
+                          Icons.add_a_photo_outlined,
+                          color: AppColors.primary,
+                          size: 28,
                         ),
-                        SizedBox(width: 8),
+                        SizedBox(height: 8),
                         Text(
-                          'Change photo',
+                          'Add more',
                           style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
+                            fontSize: 14,
                             fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
                           ),
                         ),
                       ],
                     ),
                   ),
+                );
+              }
+
+              final image = selectedImages[i];
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: SizedBox(
+                  width: 150,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      GestureDetector(
+                        onTap: () => FullScreenImageViewer.show(
+                          context,
+                          image: FileImage(image),
+                          heroTag: 'draft_photo_$i',
+                          caption: itemNameController.text.trim(),
+                        ),
+                        child: Image.file(
+                          image,
+                          fit: BoxFit.cover,
+                          cacheWidth: 500,
+                        ),
+                      ),
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: SizedBox.square(
+                          dimension: 36,
+                          child: Material(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => removePhoto(i),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: 6,
+                        bottom: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            i == 0 ? 'Cover' : '${i + 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ),
-          ],
+              );
+            },
+          ),
         ),
-      ),
+        const SizedBox(height: 8),
+        Text(
+          '${selectedImages.length}/$_maxPhotos photos',
+          style: const TextStyle(fontSize: 14, color: AppColors.muted),
+        ),
+      ],
     );
   }
 }

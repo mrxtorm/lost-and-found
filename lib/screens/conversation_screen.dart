@@ -1,3 +1,4 @@
+import '../widgets/return_feedback_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -127,8 +128,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
       if (!mounted) return;
 
       if (status == 'Approved') {
-        // The conversation has been deleted. Leave this screen immediately.
+        // The conversation has been deleted. Leave this screen immediately,
+        // then celebrate on the screen underneath (the Navigator's context
+        // outlives this route).
+        final navigator = Navigator.of(context);
+        final returnId = _currentClaimId;
         Navigator.pop(context);
+        ReturnCompletion.run(navigator, returnId: returnId);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Claim ${status == 'Approved' ? 'accepted' : 'rejected'} successfully.')),

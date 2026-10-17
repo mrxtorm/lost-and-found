@@ -29,7 +29,18 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(QueryExecutor executor) : super(executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(items, items.imageUrls);
+            await m.addColumn(items, items.localImagePaths);
+          }
+        },
+      );
 
   // ===========================================================================
   // ITEMS
@@ -82,16 +93,26 @@ class AppDatabase extends _$AppDatabase {
   /// Clears the pending flags on an item once it's confirmed on the server,
   /// optionally recording the Cloudinary URL that resulted from an offline
   /// image upload.
-  Future<void> markItemSynced(String id, {String? imageUrl}) {
+  Future<void> markItemSynced(
+    String id, {
+    String? imageUrl,
+    String? imageUrlsJson,
+  }) {
     return (update(items)..where((t) => t.id.equals(id))).write(
       ItemsCompanion(
         synced: const Value(true),
         pendingCreate: const Value(false),
         pendingUpdate: const Value(false),
         imageUrl: imageUrl == null ? const Value.absent() : Value(imageUrl),
+        imageUrls: imageUrlsJson == null
+            ? const Value.absent()
+            : Value(imageUrlsJson),
         localImagePath: imageUrl == null
             ? const Value.absent()
             : const Value(null),
+        localImagePaths: imageUrl == null
+            ? const Value.absent()
+            : const Value(''),
       ),
     );
   }

@@ -6,6 +6,7 @@ import '../models/item_model.dart';
 import '../models/notification_model.dart';
 import 'notification_service.dart';
 import 'chat_service.dart';
+import 'feedback_service.dart';
 
 /// Handles claim requests separately from the item's Lost/Found type.
 ///
@@ -291,6 +292,18 @@ class ClaimService {
     // Mark it Approved first because the Firestore delete rule only permits
     // the finder to delete an approved claim.
     await claimRef.update({'status': 'Approved'});
+
+    // The claim/item/chat are deleted below, so keep a minimal record that
+    // lets both participants leave optional feedback. Never blocks cleanup.
+    try {
+      await FeedbackService().recordCompletedReturn(
+        claimId: claimId,
+        itemId: itemId,
+        itemTitle: itemTitle,
+        ownerId: ownerId,
+        claimantId: claimantId,
+      );
+    } catch (_) {}
 
     await _deleteResolvedData(
       claimId: claimId,

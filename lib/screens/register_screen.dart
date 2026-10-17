@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
-import 'login_screen.dart';
+import 'access_gate.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -55,9 +55,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final success = await authProvider.register(email, password, name);
 
       if (success && mounted) {
-        Navigator.pushReplacement(
+        // Best effort: if sending fails, the verify screen has a resend
+        // button. AccessGate shows the Terms once, right after verification.
+        try {
+          await authProvider.sendEmailVerification();
+        } catch (_) {}
+
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          MaterialPageRoute(builder: (_) => const AccessGate()),
+          (route) => false,
         );
       }
     } catch (e) {

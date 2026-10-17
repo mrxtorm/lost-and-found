@@ -51,8 +51,25 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
 
+  /// Wraps [icon] in a red badge showing [count]; hidden when it is zero.
+  Widget _badged(int count, Widget icon) {
+    return Badge(
+      isLabelVisible: count > 0,
+      backgroundColor: Colors.red,
+      textColor: Colors.white,
+      label: Text(count > 99 ? '99+' : '$count'),
+      child: icon,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Selecting just the counts rebuilds only when a badge value changes.
+    final unreadMessages =
+        context.select<ChatProvider, int>((p) => p.totalUnreadCount);
+    final unreadNotifications =
+        context.select<NotificationProvider, int>((p) => p.unreadCount);
+
     return Scaffold(
       body: IndexedStack(
         index: selectedIndex,
@@ -63,28 +80,34 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         onDestinationSelected: (index) {
           setState(() => selectedIndex = index);
         },
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble),
+            icon: _badged(unreadMessages, const Icon(Icons.chat_bubble_outline)),
+            selectedIcon: _badged(unreadMessages, const Icon(Icons.chat_bubble)),
             label: 'Messages',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.assignment_outlined),
             selectedIcon: Icon(Icons.assignment),
             label: 'My Posts',
           ),
           NavigationDestination(
-            icon: Icon(Icons.notifications_outlined),
-            selectedIcon: Icon(Icons.notifications),
+            icon: _badged(
+              unreadNotifications,
+              const Icon(Icons.notifications_outlined),
+            ),
+            selectedIcon: _badged(
+              unreadNotifications,
+              const Icon(Icons.notifications),
+            ),
             label: 'Notifications',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
             label: 'Profile',

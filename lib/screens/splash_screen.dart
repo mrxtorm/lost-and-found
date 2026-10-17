@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import 'login_screen.dart';
-import 'main_navigation_screen.dart';
+import 'access_gate.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -29,7 +29,7 @@ class _SplashScreenState extends State<SplashScreen> {
           context,
           MaterialPageRoute(
             builder: (_) => isSignedIn
-                ? const MainNavigationScreen()
+                ? const AccessGate()
                 : const LoginScreen(),
           ),
         );

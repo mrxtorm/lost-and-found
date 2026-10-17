@@ -9,6 +9,10 @@ class ItemModel {
   final String date;
   final String status; // Lost, Found, Claimed, Pending
   final String imageUrl;
+
+  /// Every uploaded photo URL, in display order. [imageUrl] mirrors the first
+  /// entry so older code/documents that only know about one photo still work.
+  final List<String> imageUrls;
   final String username;
   final String ownerId;
   final String? verificationQuestion;
@@ -19,6 +23,9 @@ class ItemModel {
   /// available. This never comes from/goes to Firestore - it's populated
   /// only when this model is built from the local offline cache.
   final String? localImagePath;
+
+  /// Local paths of photos not yet uploaded (offline-created posts).
+  final List<String> localImagePaths;
 
   /// True while this item has a local create/edit that hasn't reached
   /// Firestore yet (e.g. it was reported while offline and is waiting for
@@ -34,13 +41,29 @@ class ItemModel {
     required this.date,
     required this.status,
     required this.imageUrl,
+    this.imageUrls = const [],
     required this.username,
     this.ownerId = '',
     this.verificationQuestion,
     this.createdAt,
     this.localImagePath,
+    this.localImagePaths = const [],
     this.isSyncPending = false,
   });
+
+  /// All photo URLs to display, falling back to the legacy single [imageUrl].
+  List<String> get allImageUrls {
+    if (imageUrls.isNotEmpty) return imageUrls;
+    return imageUrl.isNotEmpty ? [imageUrl] : const [];
+  }
+
+  /// All not-yet-uploaded local photo paths, falling back to the legacy
+  /// single [localImagePath].
+  List<String> get allLocalImagePaths {
+    if (localImagePaths.isNotEmpty) return localImagePaths;
+    final single = localImagePath;
+    return (single != null && single.isNotEmpty) ? [single] : const [];
+  }
 
   /// Build an ItemModel from a Firestore document.
   factory ItemModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -54,6 +77,11 @@ class ItemModel {
       date: data['date'] as String? ?? '',
       status: data['status'] as String? ?? 'Pending',
       imageUrl: data['imageUrl'] as String? ?? '',
+      imageUrls: (data['imageUrls'] as List<dynamic>?)
+              ?.whereType<String>()
+              .where((u) => u.isNotEmpty)
+              .toList() ??
+          const [],
       username: data['username'] as String? ?? 'Unknown',
       ownerId: data['ownerId'] as String? ?? '',
       verificationQuestion: data['verificationQuestion'] as String?,
@@ -72,6 +100,7 @@ class ItemModel {
       'date': date,
       'status': status,
       'imageUrl': imageUrl,
+      'imageUrls': imageUrls,
       'username': username,
       'ownerId': ownerId,
       'verificationQuestion': verificationQuestion,
@@ -89,11 +118,13 @@ class ItemModel {
     String? date,
     String? status,
     String? imageUrl,
+    List<String>? imageUrls,
     String? username,
     String? ownerId,
     String? verificationQuestion,
     DateTime? createdAt,
     String? localImagePath,
+    List<String>? localImagePaths,
     bool? isSyncPending,
   }) {
     return ItemModel(
@@ -105,11 +136,13 @@ class ItemModel {
       date: date ?? this.date,
       status: status ?? this.status,
       imageUrl: imageUrl ?? this.imageUrl,
+      imageUrls: imageUrls ?? this.imageUrls,
       username: username ?? this.username,
       ownerId: ownerId ?? this.ownerId,
       verificationQuestion: verificationQuestion ?? this.verificationQuestion,
       createdAt: createdAt ?? this.createdAt,
       localImagePath: localImagePath ?? this.localImagePath,
+      localImagePaths: localImagePaths ?? this.localImagePaths,
       isSyncPending: isSyncPending ?? this.isSyncPending,
     );
   }

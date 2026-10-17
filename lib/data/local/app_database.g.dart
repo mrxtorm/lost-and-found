@@ -106,6 +106,30 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, ItemRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _imageUrlsMeta = const VerificationMeta(
+    'imageUrls',
+  );
+  @override
+  late final GeneratedColumn<String> imageUrls = GeneratedColumn<String>(
+    'image_urls',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _localImagePathsMeta = const VerificationMeta(
+    'localImagePaths',
+  );
+  @override
+  late final GeneratedColumn<String> localImagePaths = GeneratedColumn<String>(
+    'local_image_paths',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _usernameMeta = const VerificationMeta(
     'username',
   );
@@ -233,6 +257,8 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, ItemRow> {
     status,
     imageUrl,
     localImagePath,
+    imageUrls,
+    localImagePaths,
     username,
     ownerId,
     verificationQuestion,
@@ -311,6 +337,21 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, ItemRow> {
         localImagePath.isAcceptableOrUnknown(
           data['local_image_path']!,
           _localImagePathMeta,
+        ),
+      );
+    }
+    if (data.containsKey('image_urls')) {
+      context.handle(
+        _imageUrlsMeta,
+        imageUrls.isAcceptableOrUnknown(data['image_urls']!, _imageUrlsMeta),
+      );
+    }
+    if (data.containsKey('local_image_paths')) {
+      context.handle(
+        _localImagePathsMeta,
+        localImagePaths.isAcceptableOrUnknown(
+          data['local_image_paths']!,
+          _localImagePathsMeta,
         ),
       );
     }
@@ -425,6 +466,14 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, ItemRow> {
         DriftSqlType.string,
         data['${effectivePrefix}local_image_path'],
       ),
+      imageUrls: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}image_urls'],
+      )!,
+      localImagePaths: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_image_paths'],
+      )!,
       username: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}username'],
@@ -486,6 +535,15 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
   /// Local file path for an image that hasn't been uploaded to Cloudinary
   /// yet. Null once [imageUrl] is populated.
   final String? localImagePath;
+
+  /// All uploaded photo URLs for the post, as a JSON array string. The first
+  /// entry always mirrors [imageUrl]. Empty string means "none recorded"
+  /// (rows created before multi-photo support).
+  final String imageUrls;
+
+  /// Local file paths (JSON array string) of photos picked while offline that
+  /// haven't been uploaded yet. Empty once all are uploaded.
+  final String localImagePaths;
   final String username;
   final String ownerId;
   final String? verificationQuestion;
@@ -508,6 +566,8 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
     required this.status,
     required this.imageUrl,
     this.localImagePath,
+    required this.imageUrls,
+    required this.localImagePaths,
     required this.username,
     required this.ownerId,
     this.verificationQuestion,
@@ -532,6 +592,8 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
     if (!nullToAbsent || localImagePath != null) {
       map['local_image_path'] = Variable<String>(localImagePath);
     }
+    map['image_urls'] = Variable<String>(imageUrls);
+    map['local_image_paths'] = Variable<String>(localImagePaths);
     map['username'] = Variable<String>(username);
     map['owner_id'] = Variable<String>(ownerId);
     if (!nullToAbsent || verificationQuestion != null) {
@@ -561,6 +623,8 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
       localImagePath: localImagePath == null && nullToAbsent
           ? const Value.absent()
           : Value(localImagePath),
+      imageUrls: Value(imageUrls),
+      localImagePaths: Value(localImagePaths),
       username: Value(username),
       ownerId: Value(ownerId),
       verificationQuestion: verificationQuestion == null && nullToAbsent
@@ -592,6 +656,8 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
       status: serializer.fromJson<String>(json['status']),
       imageUrl: serializer.fromJson<String>(json['imageUrl']),
       localImagePath: serializer.fromJson<String?>(json['localImagePath']),
+      imageUrls: serializer.fromJson<String>(json['imageUrls']),
+      localImagePaths: serializer.fromJson<String>(json['localImagePaths']),
       username: serializer.fromJson<String>(json['username']),
       ownerId: serializer.fromJson<String>(json['ownerId']),
       verificationQuestion: serializer.fromJson<String?>(
@@ -618,6 +684,8 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
       'status': serializer.toJson<String>(status),
       'imageUrl': serializer.toJson<String>(imageUrl),
       'localImagePath': serializer.toJson<String?>(localImagePath),
+      'imageUrls': serializer.toJson<String>(imageUrls),
+      'localImagePaths': serializer.toJson<String>(localImagePaths),
       'username': serializer.toJson<String>(username),
       'ownerId': serializer.toJson<String>(ownerId),
       'verificationQuestion': serializer.toJson<String?>(verificationQuestion),
@@ -640,6 +708,8 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
     String? status,
     String? imageUrl,
     Value<String?> localImagePath = const Value.absent(),
+    String? imageUrls,
+    String? localImagePaths,
     String? username,
     String? ownerId,
     Value<String?> verificationQuestion = const Value.absent(),
@@ -661,6 +731,8 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
     localImagePath: localImagePath.present
         ? localImagePath.value
         : this.localImagePath,
+    imageUrls: imageUrls ?? this.imageUrls,
+    localImagePaths: localImagePaths ?? this.localImagePaths,
     username: username ?? this.username,
     ownerId: ownerId ?? this.ownerId,
     verificationQuestion: verificationQuestion.present
@@ -688,6 +760,10 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
       localImagePath: data.localImagePath.present
           ? data.localImagePath.value
           : this.localImagePath,
+      imageUrls: data.imageUrls.present ? data.imageUrls.value : this.imageUrls,
+      localImagePaths: data.localImagePaths.present
+          ? data.localImagePaths.value
+          : this.localImagePaths,
       username: data.username.present ? data.username.value : this.username,
       ownerId: data.ownerId.present ? data.ownerId.value : this.ownerId,
       verificationQuestion: data.verificationQuestion.present
@@ -720,6 +796,8 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
           ..write('status: $status, ')
           ..write('imageUrl: $imageUrl, ')
           ..write('localImagePath: $localImagePath, ')
+          ..write('imageUrls: $imageUrls, ')
+          ..write('localImagePaths: $localImagePaths, ')
           ..write('username: $username, ')
           ..write('ownerId: $ownerId, ')
           ..write('verificationQuestion: $verificationQuestion, ')
@@ -744,6 +822,8 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
     status,
     imageUrl,
     localImagePath,
+    imageUrls,
+    localImagePaths,
     username,
     ownerId,
     verificationQuestion,
@@ -767,6 +847,8 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
           other.status == this.status &&
           other.imageUrl == this.imageUrl &&
           other.localImagePath == this.localImagePath &&
+          other.imageUrls == this.imageUrls &&
+          other.localImagePaths == this.localImagePaths &&
           other.username == this.username &&
           other.ownerId == this.ownerId &&
           other.verificationQuestion == this.verificationQuestion &&
@@ -788,6 +870,8 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
   final Value<String> status;
   final Value<String> imageUrl;
   final Value<String?> localImagePath;
+  final Value<String> imageUrls;
+  final Value<String> localImagePaths;
   final Value<String> username;
   final Value<String> ownerId;
   final Value<String?> verificationQuestion;
@@ -808,6 +892,8 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
     this.status = const Value.absent(),
     this.imageUrl = const Value.absent(),
     this.localImagePath = const Value.absent(),
+    this.imageUrls = const Value.absent(),
+    this.localImagePaths = const Value.absent(),
     this.username = const Value.absent(),
     this.ownerId = const Value.absent(),
     this.verificationQuestion = const Value.absent(),
@@ -829,6 +915,8 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
     this.status = const Value.absent(),
     this.imageUrl = const Value.absent(),
     this.localImagePath = const Value.absent(),
+    this.imageUrls = const Value.absent(),
+    this.localImagePaths = const Value.absent(),
     this.username = const Value.absent(),
     this.ownerId = const Value.absent(),
     this.verificationQuestion = const Value.absent(),
@@ -850,6 +938,8 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
     Expression<String>? status,
     Expression<String>? imageUrl,
     Expression<String>? localImagePath,
+    Expression<String>? imageUrls,
+    Expression<String>? localImagePaths,
     Expression<String>? username,
     Expression<String>? ownerId,
     Expression<String>? verificationQuestion,
@@ -871,6 +961,8 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
       if (status != null) 'status': status,
       if (imageUrl != null) 'image_url': imageUrl,
       if (localImagePath != null) 'local_image_path': localImagePath,
+      if (imageUrls != null) 'image_urls': imageUrls,
+      if (localImagePaths != null) 'local_image_paths': localImagePaths,
       if (username != null) 'username': username,
       if (ownerId != null) 'owner_id': ownerId,
       if (verificationQuestion != null)
@@ -895,6 +987,8 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
     Value<String>? status,
     Value<String>? imageUrl,
     Value<String?>? localImagePath,
+    Value<String>? imageUrls,
+    Value<String>? localImagePaths,
     Value<String>? username,
     Value<String>? ownerId,
     Value<String?>? verificationQuestion,
@@ -916,6 +1010,8 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
       status: status ?? this.status,
       imageUrl: imageUrl ?? this.imageUrl,
       localImagePath: localImagePath ?? this.localImagePath,
+      imageUrls: imageUrls ?? this.imageUrls,
+      localImagePaths: localImagePaths ?? this.localImagePaths,
       username: username ?? this.username,
       ownerId: ownerId ?? this.ownerId,
       verificationQuestion: verificationQuestion ?? this.verificationQuestion,
@@ -958,6 +1054,12 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
     }
     if (localImagePath.present) {
       map['local_image_path'] = Variable<String>(localImagePath.value);
+    }
+    if (imageUrls.present) {
+      map['image_urls'] = Variable<String>(imageUrls.value);
+    }
+    if (localImagePaths.present) {
+      map['local_image_paths'] = Variable<String>(localImagePaths.value);
     }
     if (username.present) {
       map['username'] = Variable<String>(username.value);
@@ -1006,6 +1108,8 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
           ..write('status: $status, ')
           ..write('imageUrl: $imageUrl, ')
           ..write('localImagePath: $localImagePath, ')
+          ..write('imageUrls: $imageUrls, ')
+          ..write('localImagePaths: $localImagePaths, ')
           ..write('username: $username, ')
           ..write('ownerId: $ownerId, ')
           ..write('verificationQuestion: $verificationQuestion, ')
@@ -3870,6 +3974,8 @@ typedef $$ItemsTableCreateCompanionBuilder =
       Value<String> status,
       Value<String> imageUrl,
       Value<String?> localImagePath,
+      Value<String> imageUrls,
+      Value<String> localImagePaths,
       Value<String> username,
       Value<String> ownerId,
       Value<String?> verificationQuestion,
@@ -3892,6 +3998,8 @@ typedef $$ItemsTableUpdateCompanionBuilder =
       Value<String> status,
       Value<String> imageUrl,
       Value<String?> localImagePath,
+      Value<String> imageUrls,
+      Value<String> localImagePaths,
       Value<String> username,
       Value<String> ownerId,
       Value<String?> verificationQuestion,
@@ -3954,6 +4062,16 @@ class $$ItemsTableFilterComposer extends Composer<_$AppDatabase, $ItemsTable> {
 
   ColumnFilters<String> get localImagePath => $composableBuilder(
     column: $table.localImagePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get imageUrls => $composableBuilder(
+    column: $table.imageUrls,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get localImagePaths => $composableBuilder(
+    column: $table.localImagePaths,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4057,6 +4175,16 @@ class $$ItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get imageUrls => $composableBuilder(
+    column: $table.imageUrls,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get localImagePaths => $composableBuilder(
+    column: $table.localImagePaths,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get username => $composableBuilder(
     column: $table.username,
     builder: (column) => ColumnOrderings(column),
@@ -4143,6 +4271,14 @@ class $$ItemsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get imageUrls =>
+      $composableBuilder(column: $table.imageUrls, builder: (column) => column);
+
+  GeneratedColumn<String> get localImagePaths => $composableBuilder(
+    column: $table.localImagePaths,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get username =>
       $composableBuilder(column: $table.username, builder: (column) => column);
 
@@ -4216,6 +4352,8 @@ class $$ItemsTableTableManager
                 Value<String> status = const Value.absent(),
                 Value<String> imageUrl = const Value.absent(),
                 Value<String?> localImagePath = const Value.absent(),
+                Value<String> imageUrls = const Value.absent(),
+                Value<String> localImagePaths = const Value.absent(),
                 Value<String> username = const Value.absent(),
                 Value<String> ownerId = const Value.absent(),
                 Value<String?> verificationQuestion = const Value.absent(),
@@ -4236,6 +4374,8 @@ class $$ItemsTableTableManager
                 status: status,
                 imageUrl: imageUrl,
                 localImagePath: localImagePath,
+                imageUrls: imageUrls,
+                localImagePaths: localImagePaths,
                 username: username,
                 ownerId: ownerId,
                 verificationQuestion: verificationQuestion,
@@ -4258,6 +4398,8 @@ class $$ItemsTableTableManager
                 Value<String> status = const Value.absent(),
                 Value<String> imageUrl = const Value.absent(),
                 Value<String?> localImagePath = const Value.absent(),
+                Value<String> imageUrls = const Value.absent(),
+                Value<String> localImagePaths = const Value.absent(),
                 Value<String> username = const Value.absent(),
                 Value<String> ownerId = const Value.absent(),
                 Value<String?> verificationQuestion = const Value.absent(),
@@ -4278,6 +4420,8 @@ class $$ItemsTableTableManager
                 status: status,
                 imageUrl: imageUrl,
                 localImagePath: localImagePath,
+                imageUrls: imageUrls,
+                localImagePaths: localImagePaths,
                 username: username,
                 ownerId: ownerId,
                 verificationQuestion: verificationQuestion,

@@ -66,6 +66,10 @@ class ChatProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   Object? get error => _error;
 
+  /// Total unread messages across every conversation, for the nav badge.
+  int get totalUnreadCount =>
+      _conversations.fold(0, (sum, c) => sum + c.unreadCount);
+
   /// Pull-to-refresh entry point for the Messages screen. Same pattern as
   /// [ItemProvider.refreshHome]: the result flows back through the local
   /// database and the existing stream subscription picks it up on its own.

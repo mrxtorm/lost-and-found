@@ -53,17 +53,162 @@ String optimizedImageUrl(String url, {int width = 1000}) {
 /// The best available photo for an item (uploaded one, else the local
 /// offline copy), or null when the post has no photo.
 ImageProvider? itemImageProvider(ItemModel item, {int width = 1000}) {
-  if (item.imageUrl.isNotEmpty) {
-    return CachedNetworkImageProvider(
-      optimizedImageUrl(item.imageUrl, width: width),
-      maxWidth: width,
+  final providers = itemImageProviders(item, width: width);
+  return providers.isEmpty ? null : providers.first;
+}
+
+/// Every available photo for an item, in order: uploaded ones, else the
+/// local offline copies. Empty when the post has no photos.
+List<ImageProvider> itemImageProviders(ItemModel item, {int width = 1000}) {
+  final urls = item.allImageUrls;
+  if (urls.isNotEmpty) {
+    return [
+      for (final url in urls)
+        CachedNetworkImageProvider(
+          optimizedImageUrl(url, width: width),
+          maxWidth: width,
+        ),
+    ];
+  }
+  return [
+    for (final path in item.allLocalImagePaths)
+      ResizeImage(FileImage(File(path)), width: width),
+  ];
+}
+
+/// Instagram-style swipeable photo carousel. Falls back to a single image /
+/// placeholder when the post has zero or one photo, and only shows the page
+/// indicators when there is more than one.
+class ItemImageCarousel extends StatefulWidget {
+  final ItemModel item;
+  final BoxFit fit;
+  final int width;
+
+  /// Called with the index of the photo that was tapped.
+  final ValueChanged<int>? onTapPhoto;
+
+  const ItemImageCarousel({
+    super.key,
+    required this.item,
+    this.fit = BoxFit.cover,
+    this.width = 800,
+    this.onTapPhoto,
+  });
+
+  @override
+  State<ItemImageCarousel> createState() => _ItemImageCarouselState();
+}
+
+class _ItemImageCarouselState extends State<ItemImageCarousel> {
+  final PageController _controller = PageController();
+  int _index = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Widget _page(ImageProvider provider) {
+    return ColoredBox(
+      color: AppColors.track,
+      child: Image(
+        image: provider,
+        fit: widget.fit,
+        width: double.infinity,
+        height: double.infinity,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded) return child;
+          return AnimatedOpacity(
+            opacity: frame == null ? 0 : 1,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+            child: child,
+          );
+        },
+        errorBuilder: (_, _, _) => const ImagePlaceholder(),
+      ),
     );
   }
-  final path = item.localImagePath;
-  if (path != null && path.isNotEmpty) {
-    return ResizeImage(FileImage(File(path)), width: width);
+
+  @override
+  Widget build(BuildContext context) {
+    final providers = itemImageProviders(widget.item, width: widget.width);
+    if (providers.isEmpty) return const ImagePlaceholder();
+
+    final count = providers.length;
+    final current = _index.clamp(0, count - 1);
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        PageView.builder(
+          controller: _controller,
+          itemCount: count,
+          onPageChanged: (i) => setState(() => _index = i),
+          itemBuilder: (context, i) => GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onTapPhoto == null
+                ? null
+                : () => widget.onTapPhoto!(i),
+            child: _page(providers[i]),
+          ),
+        ),
+        if (count > 1) ...[
+          Positioned(
+            top: 10,
+            right: 10,
+            child: IgnorePointer(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  '${current + 1}/$count',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 8,
+            child: IgnorePointer(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < count; i++)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: i == current ? 8 : 6,
+                      height: i == current ? 8 : 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: i == current
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.5),
+                        boxShadow: const [
+                          BoxShadow(color: Color(0x66000000), blurRadius: 3),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
   }
-  return null;
 }
 
 class ImagePlaceholder extends StatelessWidget {

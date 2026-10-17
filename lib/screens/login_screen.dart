@@ -7,7 +7,7 @@ import '../widgets/item_ui.dart';
 import '../models/remembered_account.dart';
 import '../providers/auth_provider.dart';
 import 'forgot_password_screen.dart';
-import 'main_navigation_screen.dart';
+import 'access_gate.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -146,7 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (success && mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+          MaterialPageRoute(builder: (_) => const AccessGate()),
         );
       }
     } catch (e) {

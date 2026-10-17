@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -139,7 +140,7 @@ class ItemRepository {
     required String location,
     required String date,
     required String status,
-    File? imageFile,
+    List<File> imageFiles = const [],
     String? verificationQuestion,
   }) async {
     final user = _auth.currentUser;
@@ -162,7 +163,9 @@ class ItemRepository {
       date: Value(date),
       status: Value(status),
       imageUrl: const Value(''),
-      localImagePath: Value(imageFile?.path),
+      localImagePath:
+          Value(imageFiles.isEmpty ? null : imageFiles.first.path),
+      localImagePaths: Value(_encodeList(imageFiles.map((f) => f.path))),
       username: Value(username),
       ownerId: Value(user.uid),
       verificationQuestion: Value(verificationQuestion),
@@ -286,11 +289,19 @@ class ItemRepository {
       final row = await _db.getItem(id);
       if (row == null || !row.pendingCreate) return;
 
-      var imageUrl = row.imageUrl;
-      if (imageUrl.isEmpty && row.localImagePath != null) {
-        imageUrl =
-        await _cloudinaryService.uploadImage(File(row.localImagePath!));
+      // Photos already uploaded, plus any local ones still waiting.
+      final urls = _decodeList(row.imageUrls);
+      if (urls.isEmpty && row.imageUrl.isNotEmpty) urls.add(row.imageUrl);
+      final localPaths = _decodeList(row.localImagePaths);
+      if (localPaths.isEmpty && row.localImagePath != null) {
+        localPaths.add(row.localImagePath!);
       }
+      if (urls.isEmpty) {
+        for (final path in localPaths) {
+          urls.add(await _cloudinaryService.uploadImage(File(path)));
+        }
+      }
+      final imageUrl = urls.isEmpty ? '' : urls.first;
 
       await _itemService.setItemDoc(id, {
         'title': row.title,
@@ -300,6 +311,7 @@ class ItemRepository {
         'date': row.date,
         'status': row.status,
         'imageUrl': imageUrl,
+        'imageUrls': urls,
         'username': row.username,
         'ownerId': row.ownerId,
         'verificationQuestion': row.verificationQuestion,
@@ -308,7 +320,11 @@ class ItemRepository {
             : FieldValue.serverTimestamp(),
       });
 
-      await _db.markItemSynced(id, imageUrl: imageUrl);
+      await _db.markItemSynced(
+        id,
+        imageUrl: imageUrl,
+        imageUrlsJson: jsonEncode(urls),
+      );
 
       // Category-based notifications are best-effort. The item itself is
       // already safely synced, so a temporary notification failure must not
@@ -316,14 +332,16 @@ class ItemRepository {
       if (row.status.toLowerCase() == 'found') {
         try {
           await _notificationService.notifyLostUsersForFoundItem(
-            _toModel(row).copyWith(imageUrl: imageUrl),
+            _toModel(row).copyWith(imageUrl: imageUrl, imageUrls: urls),
           );
         } catch (_) {
           // The report remains synced even if notification delivery fails.
         }
       }
 
-      await _notifyReportPosted(row.copyWith(imageUrl: imageUrl));
+      await _notifyReportPosted(
+        row.copyWith(imageUrl: imageUrl, imageUrls: jsonEncode(urls)),
+      );
     } catch (_) {
       // Leave pendingCreate=true - retried on the next sync pass.
     }
@@ -385,6 +403,22 @@ class ItemRepository {
   // MAPPING
   // ---------------------------------------------------------------------
 
+  static String _encodeList(Iterable<String> values) {
+    final list = values.where((v) => v.isNotEmpty).toList();
+    return list.isEmpty ? '' : jsonEncode(list);
+  }
+
+  static List<String> _decodeList(String raw) {
+    if (raw.isEmpty) return <String>[];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded.whereType<String>().where((v) => v.isNotEmpty).toList();
+      }
+    } catch (_) {}
+    return <String>[];
+  }
+
   ItemsCompanion _toCompanion(ItemModel item) {
     return ItemsCompanion.insert(
       id: item.id,
@@ -395,6 +429,7 @@ class ItemRepository {
       date: Value(item.date),
       status: Value(item.status),
       imageUrl: Value(item.imageUrl),
+      imageUrls: Value(_encodeList(item.imageUrls)),
       username: Value(item.username),
       ownerId: Value(item.ownerId),
       verificationQuestion: Value(item.verificationQuestion),
@@ -423,11 +458,13 @@ class ItemRepository {
       date: row.date,
       status: row.status,
       imageUrl: row.imageUrl,
+      imageUrls: _decodeList(row.imageUrls),
       username: row.username,
       ownerId: row.ownerId,
       verificationQuestion: row.verificationQuestion,
       createdAt: row.createdAt,
       localImagePath: row.localImagePath,
+      localImagePaths: _decodeList(row.localImagePaths),
       isSyncPending: row.pendingCreate || row.pendingUpdate,
     );
   }

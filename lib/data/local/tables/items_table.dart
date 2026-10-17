@@ -34,6 +34,15 @@ class Items extends Table {
   /// yet. Null once [imageUrl] is populated.
   TextColumn get localImagePath => text().nullable()();
 
+  /// All uploaded photo URLs for the post, as a JSON array string. The first
+  /// entry always mirrors [imageUrl]. Empty string means "none recorded"
+  /// (rows created before multi-photo support).
+  TextColumn get imageUrls => text().withDefault(const Constant(''))();
+
+  /// Local file paths (JSON array string) of photos picked while offline that
+  /// haven't been uploaded yet. Empty once all are uploaded.
+  TextColumn get localImagePaths => text().withDefault(const Constant(''))();
+
   TextColumn get username => text().withDefault(const Constant('Unknown'))();
   TextColumn get ownerId => text().withDefault(const Constant(''))();
   TextColumn get verificationQuestion => text().nullable()();

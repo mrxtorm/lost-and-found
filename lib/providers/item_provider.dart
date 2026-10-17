@@ -189,7 +189,7 @@ class ItemProvider with ChangeNotifier {
     required String location,
     required String date,
     required String status,
-    File? imageFile,
+    List<File> imageFiles = const [],
     String? verificationQuestion,
   }) {
     return _itemRepository.reportItem(
@@ -199,7 +199,7 @@ class ItemProvider with ChangeNotifier {
       location: location,
       date: date,
       status: status,
-      imageFile: imageFile,
+      imageFiles: imageFiles,
       verificationQuestion: verificationQuestion,
     );
   }

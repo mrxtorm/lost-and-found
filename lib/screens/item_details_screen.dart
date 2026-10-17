@@ -19,13 +19,14 @@ class ItemDetailsScreen extends StatelessWidget {
 
   String get _heroTag => 'item_photo_${item.id}';
 
-  void _openPhoto(BuildContext context) {
-    final provider = itemImageProvider(item);
-    if (provider == null) return;
+  void _openPhoto(BuildContext context, int index) {
+    final providers = itemImageProviders(item);
+    if (providers.isEmpty) return;
     FullScreenImageViewer.show(
       context,
-      image: provider,
-      heroTag: _heroTag,
+      images: providers,
+      initialIndex: index,
+      heroTag: '${_heroTag}_$index',
       caption: item.title,
     );
   }
@@ -78,16 +79,20 @@ class ItemDetailsScreen extends StatelessWidget {
                   ),
                 ),
                 flexibleSpace: FlexibleSpaceBar(
-                  background: GestureDetector(
-                    onTap: hasPhoto ? () => _openPhoto(context) : null,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Hero(tag: _heroTag, child: ItemImage(item: item)),
-                        if (hasPhoto)
-                          Positioned(
-                            right: 14,
-                            bottom: 14,
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ItemImageCarousel(
+                        item: item,
+                        width: 1000,
+                        onTapPhoto:
+                            hasPhoto ? (i) => _openPhoto(context, i) : null,
+                      ),
+                      if (hasPhoto)
+                        Positioned(
+                          right: 14,
+                          bottom: 14,
+                          child: IgnorePointer(
                             child: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
@@ -101,8 +106,8 @@ class ItemDetailsScreen extends StatelessWidget {
                               ),
                             ),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
                 ),
               ),

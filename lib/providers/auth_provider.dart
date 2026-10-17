@@ -56,6 +56,12 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  Future<void> sendEmailVerification() =>
+      _authService.sendEmailVerification();
+
+  Future<bool> reloadAndCheckVerified() =>
+      _authService.reloadAndCheckVerified();
+
   Future<void> signOut() async {
     await _authService.signOut();
   }

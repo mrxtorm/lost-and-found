@@ -136,7 +136,7 @@ class ItemCard extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        ItemImage(item: item),
+                        ItemImageCarousel(item: item),
                         Positioned(
                           left: 12,
                           right: 12,

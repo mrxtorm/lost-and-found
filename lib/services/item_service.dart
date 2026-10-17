@@ -87,7 +87,7 @@ class ItemService {
     required String location,
     required String date,
     required String status,
-    File? imageFile,
+    List<File> imageFiles = const [],
     String? verificationQuestion,
   }) async {
     final user = _auth.currentUser;
@@ -96,12 +96,12 @@ class ItemService {
       throw Exception('You must be signed in to report an item.');
     }
 
-    String imageUrl = '';
-
-    // Upload to Cloudinary.
-    if (imageFile != null) {
-      imageUrl = await _cloudinaryService.uploadImage(imageFile);
+    // Upload every photo to Cloudinary, keeping their order.
+    final imageUrls = <String>[];
+    for (final file in imageFiles) {
+      imageUrls.add(await _cloudinaryService.uploadImage(file));
     }
+    final imageUrl = imageUrls.isEmpty ? '' : imageUrls.first;
 
     final docRef = _items.doc();
 
@@ -119,6 +119,7 @@ class ItemService {
       date: date,
       status: status,
       imageUrl: imageUrl,
+      imageUrls: imageUrls,
       username: username,
 
       // IMPORTANT

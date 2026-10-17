@@ -49,6 +49,30 @@ class AuthService {
     }
   }
 
+  // Send (or resend) the account email-verification link
+  Future<void> sendEmailVerification() async {
+    try {
+      await _auth.currentUser?.sendEmailVerification();
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'too-many-requests') {
+        throw 'Please wait a moment before requesting another email.';
+      }
+      throw _mapAuthError(e);
+    }
+  }
+
+  // Refresh the signed-in user and report whether their email is verified
+  Future<bool> reloadAndCheckVerified() async {
+    await _auth.currentUser?.reload();
+    final verified = _auth.currentUser?.emailVerified ?? false;
+    if (verified) {
+      // Firestore rules read email_verified from the ID token, which is only
+      // re-issued on refresh. Force it so access works immediately.
+      await _auth.currentUser?.getIdToken(true);
+    }
+    return verified;
+  }
+
   // Sign out
   Future<void> signOut() async {
     await _auth.signOut();

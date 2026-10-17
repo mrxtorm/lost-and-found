@@ -18,6 +18,7 @@ import '../models/item_model.dart';
 import '../models/notification_model.dart';
 import '../providers/notification_provider.dart';
 import 'item_details_screen.dart';
+import '../widgets/return_feedback_sheet.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -99,17 +100,17 @@ class NotificationsScreen extends StatelessWidget {
           ),
         ),
         actions: [
-          if (notificationProvider.unreadCount > 0)
-            TextButton(
-              onPressed: () => notificationProvider.markAllAsRead(),
-              child: const Text(
-                'Mark all read',
-                style: TextStyle(
-                  color: Colors.blue,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+          TextButton.icon(
+            // Disabled (not hidden) when everything is already read.
+            onPressed: notificationProvider.unreadCount > 0
+                ? () => notificationProvider.markAllAsRead()
+                : null,
+            icon: const Icon(Icons.done_all, size: 20),
+            label: const Text(
+              'Mark All as Read',
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
+          ),
         ],
       ),
       body: RefreshIndicator(
@@ -173,7 +174,8 @@ class NotificationsScreen extends StatelessWidget {
               border: Border.all(
                 color: notification.isRead
                     ? Colors.grey.shade200
-                    : Colors.blue.shade100,
+                    : Colors.blue.shade300,
+                width: notification.isRead ? 1 : 1.5,
               ),
             ),
             child: Row(
@@ -196,19 +198,22 @@ class NotificationsScreen extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: notification.isRead
-                                      ? FontWeight.w600
-                                      : FontWeight.bold,
+                                      ? FontWeight.w500
+                                      : FontWeight.w800,
+                                  color: notification.isRead
+                                      ? Colors.black54
+                                      : Colors.black87,
                                 ),
                               ),
                             ),
                             if (!notification.isRead)
                               Container(
-                                width: 9,
-                                height: 9,
+                                width: 11,
+                                height: 11,
                                 margin:
-                                    const EdgeInsets.only(left: 8, top: 5),
+                                    const EdgeInsets.only(left: 8, top: 4),
                                 decoration: const BoxDecoration(
-                                  color: Colors.blue,
+                                  color: Colors.red,
                                   shape: BoxShape.circle,
                                 ),
                               ),
@@ -289,6 +294,11 @@ class NotificationsScreen extends StatelessWidget {
     // was accepted, so there is nothing to open.
       case NotificationType.claimApproved:
         _showNotificationDetails(context, notification, null);
+        final returnId = notification.relatedClaimId;
+        if (returnId != null && returnId.isNotEmpty) {
+          // Celebrate + optional feedback prompt (skipped if already given).
+          ReturnCompletion.run(Navigator.of(context), returnId: returnId);
+        }
         return;
 
       default:
