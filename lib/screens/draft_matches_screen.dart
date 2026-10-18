@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/item_ui.dart';
 
@@ -26,7 +27,7 @@ class DraftMatchesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
         title: const Text(
           'Possible Matches',
@@ -59,7 +60,7 @@ class DraftMatchesScreen extends StatelessWidget {
                       'similar item name. Tap one to take a closer look '
                       'before you post.',
                   style: TextStyle(
-                    color: Colors.grey.shade700,
+                    color: AppColors.muted,
                     height: 1.35,
                   ),
                 ),
@@ -160,7 +161,7 @@ class DraftMatchesScreen extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.grey.shade600,
+                        color: AppColors.muted,
                         fontSize: 13,
                       ),
                     ),
@@ -169,7 +170,7 @@ class DraftMatchesScreen extends StatelessWidget {
                       Text(
                         item.date,
                         style: TextStyle(
-                          color: Colors.grey.shade600,
+                          color: AppColors.muted,
                           fontSize: 13,
                         ),
                       ),
@@ -180,9 +181,9 @@ class DraftMatchesScreen extends StatelessWidget {
                       runSpacing: 6,
                       children: [
                         if (match.sameCategory)
-                          _reasonChip('Same category', Colors.blue),
+                          _reasonChip('Same category', AppColors.primary),
                         for (final keyword in match.sharedKeywords.take(3))
-                          _reasonChip('Keyword: $keyword', Colors.orange),
+                          _reasonChip('Keyword: $keyword', AppColors.warn),
                       ],
                     ),
                   ],
@@ -197,8 +198,8 @@ class DraftMatchesScreen extends StatelessWidget {
 
   Widget _thumbnail(ItemModel item) {
     Widget placeholder() => Container(
-      color: Colors.grey.shade300,
-      child: const Icon(Icons.image, color: Colors.grey),
+      color: AppColors.line,
+      child: const Icon(Icons.image, color: AppColors.muted),
     );
 
     Widget child;
@@ -231,7 +232,7 @@ class DraftMatchesScreen extends StatelessWidget {
 
   Widget _typeBadge(ItemModel item) {
     final isLost = item.status.toLowerCase() == 'lost';
-    final color = isLost ? Colors.red : Colors.green;
+    final color = isLost ? AppColors.lost : AppColors.found;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -250,7 +251,7 @@ class DraftMatchesScreen extends StatelessWidget {
     );
   }
 
-  Widget _reasonChip(String label, MaterialColor color) {
+  Widget _reasonChip(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -260,7 +261,7 @@ class DraftMatchesScreen extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          color: color.shade700,
+          color: HSLColor.fromColor(color).withLightness(0.28).toColor(),
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),

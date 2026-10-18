@@ -84,7 +84,12 @@ class ItemCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
+      child: Semantics(
+        container: true,
+        button: true,
+        label: '$type item: ${item.title}, posted by ${item.username}'
+            '${subtitle.isNotEmpty ? ', $subtitle' : ''}. Double tap to open.',
+        child: Material(
         color: Colors.white,
         child: InkWell(
           onTap: () => _open(context),
@@ -198,6 +203,7 @@ class ItemCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

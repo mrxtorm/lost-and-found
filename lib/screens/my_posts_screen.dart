@@ -5,6 +5,7 @@ import '../models/item_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/item_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/item_ui.dart';
 import 'item_details_screen.dart';
 import 'potential_matches_screen.dart';
@@ -19,11 +20,7 @@ class MyPostsScreen extends StatelessWidget {
   }
 
   void showEditMessage(BuildContext context, ItemModel item) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Edit "${item.title}" will be implemented later.'),
-      ),
-    );
+    AppSnack.show(context, 'Edit "${item.title}" will be implemented later.', kind: SnackKind.info);
   }
 
   Future<void> confirmDelete(BuildContext context, ItemModel item) async {
@@ -56,14 +53,10 @@ class MyPostsScreen extends StatelessWidget {
     try {
       await itemProvider.deleteItem(item.id);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('"${item.title}" was deleted.')),
-      );
+      AppSnack.show(context, '"${item.title}" was deleted.', kind: SnackKind.success);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete: $e')),
-      );
+      AppSnack.show(context, 'Failed to delete: $e', kind: SnackKind.error);
     }
   }
 
@@ -79,7 +72,11 @@ class MyPostsScreen extends StatelessWidget {
         title: const Text('My posts'),
       ),
       body: uid == null
-          ? const Center(child: Text('Sign in to see your posts.'))
+          ? const EmptyState(
+              icon: Icons.lock_outline_rounded,
+              title: 'Sign in required',
+              message: 'Sign in to see your posts.',
+            )
           : Column(
         children: [
           Padding(
@@ -92,7 +89,7 @@ class MyPostsScreen extends StatelessWidget {
           ),
           Expanded(
             child: itemProvider.isLoadingMine
-                ? const Center(child: CircularProgressIndicator())
+                ? const LoadingView(label: 'Loading your posts')
                 : RefreshIndicator(
               onRefresh: itemProvider.refreshHome,
               child: items.isEmpty
@@ -353,40 +350,13 @@ class MyPostsScreen extends StatelessWidget {
 
   Widget _buildEmptyState(String filter) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(40, 80, 40, 40),
-      child: Column(
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.assignment_outlined,
-              size: 34,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(height: 18),
-          const Text(
-            'Nothing here yet',
-            style: TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.w800,
-              color: AppColors.ink,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            filter == 'All'
-                ? 'Posts you create will show up here.'
-                : 'You have no ${filter.toLowerCase()} posts.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.muted, height: 1.4),
-          ),
-        ],
+      padding: const EdgeInsets.only(top: 40),
+      child: EmptyState(
+        icon: Icons.assignment_outlined,
+        title: 'Nothing here yet',
+        message: filter == 'All'
+            ? 'Posts you create will show up here.'
+            : 'You have no ${filter.toLowerCase()} posts.',
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/item_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/category_card.dart';
 import '../widgets/item_card.dart';
 import '../widgets/item_ui.dart';
@@ -29,9 +30,7 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 2,
+        tooltip: 'Report a lost or found item',
         icon: const Icon(Icons.add_rounded),
         label: const Text(
           'New post',
@@ -134,14 +133,32 @@ class HomeScreen extends StatelessWidget {
 
             // FEED
             if (isLoading && items.isEmpty)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: CircularProgressIndicator()),
-              )
+              const SliverToBoxAdapter(child: FeedSkeleton())
             else if (items.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
-                child: _EmptyState(filtered: provider.hasActiveHomeFilters),
+                child: EmptyState(
+                  icon: provider.hasActiveHomeFilters
+                      ? Icons.search_off_rounded
+                      : Icons.inventory_2_outlined,
+                  title: provider.hasActiveHomeFilters
+                      ? 'No items match'
+                      : 'No reports yet',
+                  message: provider.hasActiveHomeFilters
+                      ? 'Try a different word, or clear the filters.'
+                      : 'Lost and found items will show up here.',
+                  actionLabel: provider.hasActiveHomeFilters
+                      ? 'Clear filters'
+                      : 'Report an item',
+                  onAction: provider.hasActiveHomeFilters
+                      ? provider.clearHomeFilters
+                      : () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ReportItemScreen(),
+                            ),
+                          ),
+                ),
               )
             else
               SliverList.builder(
@@ -163,52 +180,4 @@ class _Category {
   final Color color;
 
   const _Category(this.name, this.icon, this.color);
-}
-
-class _EmptyState extends StatelessWidget {
-  final bool filtered;
-
-  const _EmptyState({required this.filtered});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              filtered ? Icons.search_off_rounded : Icons.inventory_2_outlined,
-              size: 34,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            filtered ? 'No items match' : 'No reports yet',
-            style: const TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.w800,
-              color: AppColors.ink,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            filtered
-                ? 'Try a different word, or clear the filters.'
-                : 'Lost and found items will show up here.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.muted, height: 1.4),
-          ),
-        ],
-      ),
-    );
-  }
 }

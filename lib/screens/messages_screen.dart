@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import 'package:provider/provider.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/item_ui.dart';
 
 import '../models/conversation_model.dart';
@@ -79,12 +81,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
               if (chatProvider.error != null) {
                 return _StateMessage(
                   icon: Icons.error_outline,
-                  text: 'Unable to load messages.',
+                  text: "We couldn't load your messages.",
+                  onRetry: chatProvider.refreshConversations,
                 );
               }
 
               if (chatProvider.isLoading) {
-                return const Center(child: CircularProgressIndicator());
+                return const LoadingView(label: 'Loading conversations');
               }
 
               final conversations = _filter(chatProvider.conversations);
@@ -194,7 +197,7 @@ class _ConversationTile extends StatelessWidget {
               fontWeight: unread ? FontWeight.w700 : FontWeight.normal,
               color: unread
                   ? Theme.of(context).colorScheme.primary
-                  : Colors.grey.shade600,
+                  : AppColors.muted,
             ),
           ),
         ],
@@ -214,7 +217,7 @@ class _ConversationTile extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
-                      color: Colors.grey.shade700,
+                      color: AppColors.muted,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -225,7 +228,7 @@ class _ConversationTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: unread ? Colors.black87 : Colors.grey.shade600,
+                      color: unread ? Colors.black87 : AppColors.muted,
                       fontWeight: unread ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
@@ -271,12 +274,12 @@ class _ItemImage extends StatelessWidget {
       width: 56,
       height: 56,
       decoration: BoxDecoration(
-        color: Colors.grey.shade200,
+        color: AppColors.line,
         borderRadius: BorderRadius.circular(12),
       ),
       clipBehavior: Clip.antiAlias,
       child: url.isEmpty
-          ? const Icon(Icons.image_outlined, color: Colors.grey)
+          ? const Icon(Icons.image_outlined, color: AppColors.muted)
           : Image(
         image: CachedNetworkImageProvider(
           optimizedImageUrl(url, width: 300),
@@ -285,7 +288,7 @@ class _ItemImage extends StatelessWidget {
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => const Icon(
           Icons.image_outlined,
-          color: Colors.grey,
+          color: AppColors.muted,
         ),
       ),
     );
@@ -295,30 +298,21 @@ class _ItemImage extends StatelessWidget {
 class _StateMessage extends StatelessWidget {
   final IconData icon;
   final String text;
+  final VoidCallback? onRetry;
 
   const _StateMessage({
     required this.icon,
     required this.text,
+    this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: Colors.grey.shade400),
-            const SizedBox(height: 12),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
-            ),
-          ],
-        ),
-      ),
+    if (onRetry != null) return ErrorState(message: text, onRetry: onRetry);
+    return EmptyState(
+      icon: icon,
+      title: text,
+      message: 'Start a chat from an item you found or lost.',
     );
   }
 }

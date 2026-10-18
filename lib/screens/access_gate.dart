@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_feedback.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
@@ -111,12 +113,8 @@ class _AccessGateState extends State<AccessGate> {
       if (mounted) await _evaluate();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not save your acceptance. Check your '
-              'connection and try again.'),
-        ),
-      );
+      AppSnack.show(context, 'Could not save your acceptance. Check your '
+              'connection and try again.', kind: SnackKind.error);
     } finally {
       if (mounted) setState(() => _isRecording = false);
     }
@@ -198,7 +196,7 @@ class _AcceptTermsPrompt extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(Icons.gavel_outlined, size: 72, color: Colors.blue.shade700),
+              Icon(Icons.gavel_outlined, size: 72, color: AppColors.primary),
               const SizedBox(height: 16),
               const Text(
                 'Terms of Service',
@@ -211,7 +209,7 @@ class _AcceptTermsPrompt extends StatelessWidget {
                 'Agreement (version ${TermsService.currentVersion}) to use '
                 'Campus Lost & Found.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 14, color: AppColors.muted),
               ),
               const SizedBox(height: 28),
               SizedBox(

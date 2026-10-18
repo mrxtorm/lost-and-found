@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/item_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/full_screen_image_viewer.dart';
 import 'draft_matches_screen.dart';
 
@@ -362,9 +363,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
   }
 
   void showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    AppSnack.show(context, message, kind: SnackKind.info);
   }
 
   Future<bool> _confirmDiscard() async {

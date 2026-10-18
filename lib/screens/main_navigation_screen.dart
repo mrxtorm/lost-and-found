@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../data/local/connectivity_service.dart';
 import '../data/sync/sync_manager.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/claim_provider.dart';
 import '../providers/item_provider.dart';
 import '../providers/notification_provider.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_feedback.dart';
 import 'home_screen.dart';
 import 'messages_screen.dart';
 import 'my_posts_screen.dart';
@@ -55,7 +59,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget _badged(int count, Widget icon) {
     return Badge(
       isLabelVisible: count > 0,
-      backgroundColor: Colors.red,
+      backgroundColor: AppColors.error,
       textColor: Colors.white,
       label: Text(count > 99 ? '99+' : '$count'),
       child: icon,
@@ -71,13 +75,40 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         context.select<NotificationProvider, int>((p) => p.unreadCount);
 
     return Scaffold(
-      body: IndexedStack(
-        index: selectedIndex,
-        children: screens,
+      body: Column(
+        children: [
+          // Tells the user why things may not update right away.
+          Builder(builder: (context) {
+            final connectivity = context.read<ConnectivityService>();
+            return StreamBuilder<bool>(
+              stream: connectivity.onConnectivityChanged,
+              initialData: connectivity.isOnlineNow,
+              builder: (context, snapshot) {
+                final online = snapshot.data ?? true;
+                return AnimatedSize(
+                  duration: const Duration(milliseconds: 200),
+                  child: online
+                      ? const SizedBox(width: double.infinity)
+                      : SafeArea(
+                          bottom: false,
+                          child: const OfflineBanner(),
+                        ),
+                );
+              },
+            );
+          }),
+          Expanded(
+            child: IndexedStack(
+              index: selectedIndex,
+              children: screens,
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
+          if (index != selectedIndex) HapticFeedback.selectionClick();
           setState(() => selectedIndex = index);
         },
         destinations: [

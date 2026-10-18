@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_feedback.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
@@ -33,9 +35,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    AppSnack.show(context, message, kind: SnackKind.info);
   }
 
   Future<void> _checkVerified() async {
@@ -112,7 +112,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               Icon(
                 Icons.mark_email_read_outlined,
                 size: 72,
-                color: Colors.blue.shade700,
+                color: AppColors.primary,
               ),
               const SizedBox(height: 16),
               Text(
@@ -121,7 +121,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade900,
+                  color: AppColors.ink,
                 ),
               ),
               const SizedBox(height: 8),
@@ -130,7 +130,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 'back and tap the button below. Check your spam folder if you '
                 'cannot find it.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 14, color: AppColors.muted),
               ),
               const SizedBox(height: 28),
               SizedBox(

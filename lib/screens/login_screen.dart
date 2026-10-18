@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_feedback.dart';
 import 'package:provider/provider.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -132,9 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter email and password.")),
-      );
+      AppSnack.show(context, "Please enter email and password.", kind: SnackKind.error);
       return;
     }
 
@@ -151,9 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
+        AppSnack.show(context, e.toString(), kind: SnackKind.info);
       }
     }
   }
@@ -167,17 +165,17 @@ class _LoginScreenState extends State<LoginScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       filled: true,
-      fillColor: Colors.grey.shade50,
+      fillColor: AppColors.bg,
     );
   }
 
-  MaterialColor _avatarColor(String seed) {
+  Color _avatarColor(String seed) {
     const palette = [
-      Colors.blue,
+      AppColors.primary,
       Colors.teal,
       Colors.indigo,
       Colors.deepPurple,
-      Colors.orange,
+      AppColors.warn,
       Colors.pink,
     ];
     final index = seed.isEmpty ? 0 : seed.codeUnits.fold<int>(0, (a, b) => a + b) % palette.length;
@@ -193,16 +191,16 @@ class _LoginScreenState extends State<LoginScreen> {
           optimizedImageUrl(account.photoUrl!, width: 200),
           maxWidth: 200,
         ),
-        backgroundColor: color.shade50,
+        backgroundColor: color.withValues(alpha: 0.12),
       );
     }
     return CircleAvatar(
       radius: radius,
-      backgroundColor: color.shade50,
+      backgroundColor: color.withValues(alpha: 0.12),
       child: Text(
         account.initial,
         style: TextStyle(
-          color: color.shade700,
+          color: color,
           fontWeight: FontWeight.bold,
           fontSize: radius * 0.75,
         ),
@@ -226,11 +224,11 @@ class _LoginScreenState extends State<LoginScreen> {
               else
                 CircleAvatar(
                   radius: 46,
-                  backgroundColor: Colors.blue.shade50,
+                  backgroundColor: AppColors.primarySoft,
                   child: Icon(
                     Icons.lock_outline,
                     size: 46,
-                    color: Colors.blue.shade700,
+                    color: AppColors.primary,
                   ),
                 ),
               const SizedBox(height: 20),
@@ -243,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade900,
+                  color: AppColors.ink,
                 ),
               ),
               const SizedBox(height: 4),
@@ -253,7 +251,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     : (_selectedAccount != null
                         ? "Enter your password to continue"
                         : "Log in to continue"),
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 14, color: AppColors.muted),
               ),
               const SizedBox(height: 28),
               if (_showChooser) _buildAccountChooser() else _buildForm(isLoading),
@@ -275,10 +273,10 @@ class _LoginScreenState extends State<LoginScreen> {
           (account) => Card(
             margin: const EdgeInsets.only(bottom: 10),
             elevation: 0,
-            color: Colors.grey.shade50,
+            color: AppColors.bg,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.grey.shade200),
+              side: BorderSide(color: AppColors.line),
             ),
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -289,7 +287,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               subtitle: Text(account.email),
               trailing: IconButton(
-                icon: Icon(Icons.close, color: Colors.grey.shade500, size: 20),
+                icon: Icon(Icons.close, color: AppColors.muted, size: 20),
                 tooltip: "Remove from this device",
                 onPressed: () => _confirmRemoveAccount(account),
               ),
@@ -345,7 +343,7 @@ class _LoginScreenState extends State<LoginScreen> {
             suffix: IconButton(
               icon: Icon(
                 _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                color: Colors.grey.shade600,
+                color: AppColors.muted,
               ),
               onPressed: () {
                 setState(() => _obscurePassword = !_obscurePassword);

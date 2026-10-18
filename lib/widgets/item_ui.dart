@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../models/item_model.dart';
@@ -9,6 +10,21 @@ import '../theme/app_theme.dart';
 /// 'Lost' or 'Found'. Pending/Claimed items are publicly Found items.
 String publicTypeOf(ItemModel item) =>
     item.status.toLowerCase() == 'lost' ? 'Lost' : 'Found';
+
+IconData statusIcon(String status) {
+  switch (status.toLowerCase()) {
+    case 'lost':
+      return Icons.search_rounded;
+    case 'found':
+      return Icons.check_circle_outline_rounded;
+    case 'claimed':
+      return Icons.verified_rounded;
+    case 'pending':
+      return Icons.hourglass_top_rounded;
+    default:
+      return Icons.circle;
+  }
+}
 
 Color statusColor(String status) {
   switch (status.toLowerCase()) {
@@ -222,7 +238,7 @@ class ImagePlaceholder extends StatelessWidget {
         child: Icon(
           Icons.image_outlined,
           size: 40,
-          color: Color(0xFFA3AAB8),
+          color: Color(0xFF8A93A3),
         ),
       ),
     );
@@ -323,33 +339,33 @@ class StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: large ? 12 : 10,
-        vertical: large ? 7 : 5,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w700,
-              fontSize: large ? 13 : 12,
+    return Semantics(
+      label: 'Status: $label',
+      excludeSemantics: true,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: large ? 12 : 10,
+          vertical: large ? 7 : 5,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(statusIcon(label), size: large ? 15 : 13, color: color),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w700,
+                fontSize: large ? 13 : 12,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -371,7 +387,7 @@ class SegmentedTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 46,
+      height: 48,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: AppColors.track,
@@ -381,9 +397,17 @@ class SegmentedTabs extends StatelessWidget {
         children: [
           for (final option in options)
             Expanded(
-              child: GestureDetector(
+              child: Semantics(
+                button: true,
+                selected: option == selected,
+                label: option,
+                excludeSemantics: true,
+                child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => onChanged(option),
+                onTap: () {
+                  if (option != selected) HapticFeedback.selectionClick();
+                  onChanged(option);
+                },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOut,
@@ -416,6 +440,7 @@ class SegmentedTabs extends StatelessWidget {
                     ),
                   ),
                 ),
+              ),
               ),
             ),
         ],

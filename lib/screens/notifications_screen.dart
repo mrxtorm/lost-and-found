@@ -3,9 +3,11 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import 'package:provider/provider.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/item_ui.dart';
 
 import '../providers/auth_provider.dart';
@@ -49,21 +51,21 @@ class NotificationsScreen extends StatelessWidget {
     switch (type) {
       case NotificationType.match:
       case NotificationType.categoryMatch:
-        return Colors.green;
+        return AppColors.found;
       case NotificationType.claimReceived:
         return Colors.purple;
       case NotificationType.claimApproved:
-        return Colors.green;
+        return AppColors.found;
       case NotificationType.claimRejected:
-        return Colors.red;
+        return AppColors.lost;
       case NotificationType.claimUpdate:
-        return Colors.blue;
+        return AppColors.primary;
       case NotificationType.message:
-        return Colors.blue;
+        return AppColors.primary;
       case NotificationType.reportPosted:
         return Colors.teal;
       default:
-        return Colors.grey;
+        return AppColors.muted;
     }
   }
 
@@ -87,7 +89,7 @@ class NotificationsScreen extends StatelessWidget {
     final notifications = notificationProvider.notifications;
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -118,10 +120,10 @@ class NotificationsScreen extends StatelessWidget {
         child: notificationProvider.isLoading
             ? ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                children: const [
-                  Padding(
+                children: [
+                  const Padding(
                     padding: EdgeInsets.only(top: 120),
-                    child: Center(child: CircularProgressIndicator()),
+                    child: LoadingView(label: 'Loading notifications'),
                   ),
                 ],
               )
@@ -169,12 +171,12 @@ class NotificationsScreen extends StatelessWidget {
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: notification.isRead ? Colors.white : Colors.blue.shade50,
+              color: notification.isRead ? Colors.white : AppColors.primarySoft,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: notification.isRead
-                    ? Colors.grey.shade200
-                    : Colors.blue.shade300,
+                    ? AppColors.line
+                    : AppColors.primary,
                 width: notification.isRead ? 1 : 1.5,
               ),
             ),
@@ -213,7 +215,7 @@ class NotificationsScreen extends StatelessWidget {
                                 margin:
                                     const EdgeInsets.only(left: 8, top: 4),
                                 decoration: const BoxDecoration(
-                                  color: Colors.red,
+                                  color: AppColors.lost,
                                   shape: BoxShape.circle,
                                 ),
                               ),
@@ -226,7 +228,7 @@ class NotificationsScreen extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.grey.shade700,
+                            color: AppColors.muted,
                             height: 1.4,
                           ),
                         ),
@@ -237,7 +239,7 @@ class NotificationsScreen extends StatelessWidget {
                               _formatTime(notification.createdAt),
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey.shade500,
+                                color: AppColors.muted,
                               ),
                             ),
                             const Spacer(),
@@ -245,7 +247,7 @@ class NotificationsScreen extends StatelessWidget {
                               Icon(
                                 Icons.chevron_right,
                                 size: 20,
-                                color: Colors.grey.shade500,
+                                color: AppColors.muted,
                               ),
                           ],
                         ),
@@ -554,14 +556,14 @@ class NotificationsScreen extends StatelessWidget {
                 notification.message,
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey.shade700,
+                  color: AppColors.muted,
                   height: 1.5,
                 ),
               ),
               const SizedBox(height: 12),
               Text(
                 _formatTime(notification.createdAt),
-                style: TextStyle(color: Colors.grey.shade500),
+                style: TextStyle(color: AppColors.muted),
               ),
               const SizedBox(height: 24),
               SizedBox(
@@ -584,30 +586,11 @@ class NotificationsScreen extends StatelessWidget {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(30),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.notifications_none,
-              size: 80,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'No Notifications',
-              style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'You are all caught up!',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ],
-        ),
-      ),
+    return const EmptyState(
+      icon: Icons.notifications_none_rounded,
+      title: 'No notifications',
+      message: 'You are all caught up! Updates on your posts and claims '
+          'will appear here.',
     );
   }
 }

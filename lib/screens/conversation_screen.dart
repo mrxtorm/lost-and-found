@@ -1,5 +1,7 @@
 import '../widgets/return_feedback_sheet.dart';
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_feedback.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -83,9 +85,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         TextPosition(offset: _messageController.text.length),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send message: $e')),
-      );
+      AppSnack.show(context, 'Failed to send message: $e', kind: SnackKind.error);
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
@@ -136,15 +136,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
         Navigator.pop(context);
         ReturnCompletion.run(navigator, returnId: returnId);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Claim ${status == 'Approved' ? 'accepted' : 'rejected'} successfully.')),
-        );
+        AppSnack.show(context, 'Claim ${status == 'Approved' ? 'accepted' : 'rejected'} successfully.', kind: SnackKind.success);
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to update claim: $e')),
-      );
+      AppSnack.show(context, 'Unable to update claim: $e', kind: SnackKind.error);
     } finally {
       if (mounted) setState(() => _isResolvingClaim = false);
     }
@@ -153,7 +149,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
   String _currentClaimId = '';
 
   Future<void> _resendClaim(ClaimModel claim) async {
-    final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     ItemModel? item;
 
@@ -195,9 +190,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
     final resolvedItem = item;
     if (resolvedItem == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('This post is no longer available.')),
-      );
+      AppSnack.show(context, 'This post is no longer available.', kind: SnackKind.error);
       return;
     }
 
@@ -259,7 +252,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 conversation!.itemName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 12, color: AppColors.muted),
               ),
           ],
         ),
@@ -334,7 +327,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           return const Center(
             child: Text(
               'No messages yet. Say hello!',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: AppColors.muted),
             ),
           );
         }
@@ -365,16 +358,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50,
+        color: AppColors.warnSoft,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.orange.shade200),
+        border: Border.all(color: AppColors.warnLine),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.assignment_turned_in, color: Colors.orange),
+              const Icon(Icons.assignment_turned_in, color: AppColors.warn),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -391,10 +384,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: pending
-                      ? Colors.orange
+                      ? AppColors.warn
                       : rejected
-                          ? Colors.red
-                          : Colors.green,
+                          ? AppColors.lost
+                          : AppColors.found,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -425,12 +418,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                Icon(Icons.touch_app_outlined, size: 16, color: Colors.orange.shade900),
+                Icon(Icons.touch_app_outlined, size: 16, color: AppColors.warn),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     'Tap the options button next to the message box to accept or reject this claim.',
-                    style: TextStyle(color: Colors.orange.shade900, fontSize: 12),
+                    style: TextStyle(color: AppColors.warn, fontSize: 12),
                   ),
                 ),
               ],
@@ -440,7 +433,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             const SizedBox(height: 10),
             Text(
               'Your claim has been sent. Continue discussing the item here and provide more information if needed.',
-              style: TextStyle(color: Colors.orange.shade900, fontSize: 12),
+              style: TextStyle(color: AppColors.warn, fontSize: 12),
             ),
           ],
           if (rejected) ...[
@@ -485,7 +478,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             label,
             style: TextStyle(
               fontSize: 11,
-              color: Colors.grey.shade600,
+              color: AppColors.muted,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -502,7 +495,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: AppColors.bg,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -511,12 +504,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              color: Colors.grey.shade200,
+              color: AppColors.line,
               borderRadius: BorderRadius.circular(10),
             ),
             clipBehavior: Clip.antiAlias,
             child: conversation.itemImageUrl.isEmpty
-                ? const Icon(Icons.image_outlined, color: Colors.grey)
+                ? const Icon(Icons.image_outlined, color: AppColors.muted)
                 : Image(
               image: CachedNetworkImageProvider(
                 optimizedImageUrl(conversation.itemImageUrl, width: 300),
@@ -525,7 +518,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => const Icon(
                 Icons.image_outlined,
-                color: Colors.grey,
+                color: AppColors.muted,
               ),
             ),
           ),
@@ -544,7 +537,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   const SizedBox(height: 3),
                   Text(
                     conversation.itemType.toUpperCase(),
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 12, color: AppColors.muted),
                   ),
                 ],
               ],
@@ -569,7 +562,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         decoration: BoxDecoration(
           color: isMine
               ? Theme.of(context).colorScheme.primary
-              : Colors.grey.shade200,
+              : AppColors.line,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -591,7 +584,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             Text(
               _formatMessageTime(message.timestamp),
               style: TextStyle(
-                color: isMine ? Colors.white70 : Colors.grey.shade600,
+                color: isMine ? Colors.white70 : AppColors.muted,
                 fontSize: 10,
               ),
             ),
@@ -650,7 +643,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   counterText: '',
                   hintText: 'Type a message...',
                   filled: true,
-                  fillColor: Colors.grey.shade100,
+                  fillColor: AppColors.bg,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,
@@ -697,7 +690,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: AppColors.line,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -708,7 +701,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 const SizedBox(height: 4),
                 Text(
                   '${claim.claimantName} says this item belongs to them.',
-                  style: TextStyle(color: Colors.grey.shade700),
+                  style: TextStyle(color: AppColors.muted),
                 ),
                 const SizedBox(height: 20),
                 Row(

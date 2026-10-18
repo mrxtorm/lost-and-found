@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_feedback.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 
@@ -70,12 +72,9 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
     if (!mounted) return;
 
     if (!success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to submit claim: ${claimProvider.errorMessage}',
-          ),
-        ),
+      AppSnack.error(
+        context,
+        'Failed to submit claim: ${claimProvider.errorMessage}',
       );
       return;
     }
@@ -89,7 +88,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
             children: [
               Icon(
                 Icons.check_circle,
-                color: Colors.green,
+                color: AppColors.found,
               ),
               SizedBox(width: 8),
               Text("Request Submitted"),
@@ -206,7 +205,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
 
                               style: TextStyle(
                                 color:
-                                Colors.grey.shade700,
+                                AppColors.muted,
                               ),
                             ),
 
@@ -218,7 +217,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
                                 const Icon(
                                   Icons.location_on_outlined,
                                   size: 16,
-                                  color: Colors.grey,
+                                  color: AppColors.muted,
                                 ),
 
                                 const SizedBox(width: 4),
@@ -262,7 +261,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
                     "verify that this item belongs to you.",
 
                 style: TextStyle(
-                  color: Colors.grey.shade700,
+                  color: AppColors.muted,
                   height: 1.4,
                 ),
               ),
@@ -276,11 +275,11 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
                 padding: const EdgeInsets.all(16),
 
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: AppColors.primarySoft,
                   borderRadius:
                   BorderRadius.circular(14),
                   border: Border.all(
-                    color: Colors.blue.shade100,
+                    color: AppColors.primarySoft,
                   ),
                 ),
 
@@ -295,7 +294,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
 
                         Icon(
                           Icons.help_outline,
-                          color: Colors.blue,
+                          color: AppColors.primary,
                         ),
 
                         SizedBox(width: 8),
@@ -303,7 +302,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
                         Text(
                           "Verification Question",
                           style: TextStyle(
-                            color: Colors.blue,
+                            color: AppColors.primary,
                             fontWeight:
                             FontWeight.bold,
                           ),
@@ -361,7 +360,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
 
                     borderSide:
                     const BorderSide(
-                      color: Colors.blue,
+                      color: AppColors.primary,
                       width: 2,
                     ),
                   ),
@@ -403,7 +402,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
                     "that may help verify your ownership.",
 
                 style: TextStyle(
-                  color: Colors.grey.shade700,
+                  color: AppColors.muted,
                 ),
               ),
 
@@ -430,7 +429,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
 
                     borderSide:
                     const BorderSide(
-                      color: Colors.blue,
+                      color: AppColors.primary,
                       width: 2,
                     ),
                   ),
@@ -495,7 +494,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
                 padding: const EdgeInsets.all(14),
 
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: AppColors.warnSoft,
                   borderRadius:
                   BorderRadius.circular(12),
                 ),
@@ -508,7 +507,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
 
                     Icon(
                       Icons.info_outline,
-                      color: Colors.orange.shade800,
+                      color: AppColors.warn,
                     ),
 
                     const SizedBox(width: 10),
@@ -521,7 +520,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
 
                         style: TextStyle(
                           color:
-                          Colors.orange.shade900,
+                          AppColors.warn,
                           height: 1.4,
                         ),
                       ),
@@ -573,12 +572,12 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
     return Container(
       width: 85,
       height: 85,
-      color: Colors.grey.shade200,
+      color: AppColors.line,
 
       child: Icon(
         Icons.image_outlined,
         size: 40,
-        color: Colors.grey.shade500,
+        color: AppColors.muted,
       ),
     );
   }

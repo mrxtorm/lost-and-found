@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/item_ui.dart';
@@ -77,7 +78,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
         title: const Text(
           'Possible Matches',
@@ -124,7 +125,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
               '${_matches.length} possible '
                   '${_matches.length == 1 ? 'match' : 'matches'}',
               style: TextStyle(
-                color: Colors.grey.shade800,
+                color: AppColors.ink,
                 fontWeight: FontWeight.w700,
                 fontSize: 15,
               ),
@@ -133,7 +134,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
           if (_lastChecked != null)
             Text(
               'Checked ${_formatTime(_lastChecked!)}',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
         ],
       ),
@@ -187,7 +188,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
                   Text(
                     '${item.category}  •  ${item.location}',
                     style: TextStyle(
-                      color: Colors.grey.shade600,
+                      color: AppColors.muted,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -195,7 +196,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
                     const SizedBox(height: 2),
                     Text(
                       item.date,
-                      style: TextStyle(color: Colors.grey.shade600),
+                      style: TextStyle(color: AppColors.muted),
                     ),
                   ],
                   const SizedBox(height: 10),
@@ -204,9 +205,9 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
                     runSpacing: 6,
                     children: [
                       if (match.sameCategory)
-                        _reasonChip('Same category', Colors.blue),
+                        _reasonChip('Same category', AppColors.primary),
                       for (final keyword in match.sharedKeywords.take(3))
-                        _reasonChip('Keyword: $keyword', Colors.orange),
+                        _reasonChip('Keyword: $keyword', AppColors.warn),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -227,7 +228,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
     );
   }
 
-  Widget _reasonChip(String label, MaterialColor color) {
+  Widget _reasonChip(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -237,7 +238,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
       child: Text(
         label,
         style: TextStyle(
-          color: color.shade700,
+          color: HSLColor.fromColor(color).withLightness(0.28).toColor(),
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
@@ -271,16 +272,16 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
 
   Widget _placeholder() {
     return Container(
-      color: Colors.grey.shade300,
+      color: AppColors.line,
       child: const Center(
-        child: Icon(Icons.image, size: 64, color: Colors.grey),
+        child: Icon(Icons.image, size: 64, color: AppColors.muted),
       ),
     );
   }
 
   Widget _typeBadge(ItemModel item) {
     final isLost = item.status.toLowerCase() == 'lost';
-    final color = isLost ? Colors.red : Colors.green;
+    final color = isLost ? AppColors.lost : AppColors.found;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
@@ -310,7 +311,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
             Icon(
               Icons.search_off,
               size: 76,
-              color: Colors.grey.shade400,
+              color: AppColors.muted,
             ),
             const SizedBox(height: 18),
             const Text(
@@ -327,7 +328,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
                   'New reports are added all the time, so check again later.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.grey.shade600,
+                color: AppColors.muted,
                 height: 1.4,
               ),
             ),
@@ -335,7 +336,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
               const SizedBox(height: 8),
               Text(
                 'Last checked ${_formatTime(_lastChecked!)}',
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
             ],
             const SizedBox(height: 22),

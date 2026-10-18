@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_feedback.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/chat_provider.dart';
@@ -55,9 +56,7 @@ class _MessageButtonState extends State<MessageButton> {
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to start conversation: $e')),
-      );
+      AppSnack.show(context, 'Unable to start conversation: $e', kind: SnackKind.error);
     } finally {
       if (mounted) {
         setState(() {

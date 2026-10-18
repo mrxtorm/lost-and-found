@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 import '../services/terms_service.dart';
 
@@ -33,14 +34,14 @@ class TermsScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade900,
+                      color: AppColors.ink,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Version ${TermsService.currentVersion} · '
                     'Last updated ${TermsService.lastUpdated}',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 13, color: AppColors.muted),
                   ),
                   const SizedBox(height: 16),
                   for (final section in TermsService.sections) ...[
@@ -57,7 +58,7 @@ class TermsScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14,
                         height: 1.4,
-                        color: Colors.grey.shade800,
+                        color: AppColors.ink,
                       ),
                     ),
                     const SizedBox(height: 16),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_feedback.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
@@ -36,16 +38,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final confirmPassword = _confirmPasswordController.text.trim();
 
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill in all fields.")),
-      );
+      AppSnack.show(context, "Please fill in all fields.", kind: SnackKind.error);
       return;
     }
 
     if (password != confirmPassword) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Passwords do not match.")),
-      );
+      AppSnack.show(context, "Passwords do not match.", kind: SnackKind.error);
       return;
     }
 
@@ -70,9 +68,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
+        AppSnack.show(context, e.toString(), kind: SnackKind.info);
       }
     }
   }
@@ -86,7 +82,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       filled: true,
-      fillColor: Colors.grey.shade50,
+      fillColor: AppColors.bg,
     );
   }
 
@@ -108,7 +104,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             Icon(
               Icons.person_add_alt_1,
               size: 64,
-              color: Colors.blue.shade700,
+              color: AppColors.primary,
             ),
             const SizedBox(height: 12),
             Text(
@@ -116,13 +112,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey.shade900,
+                color: AppColors.ink,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               "Use your university email to sign up.",
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 14, color: AppColors.muted),
             ),
             const SizedBox(height: 28),
             TextField(
@@ -146,7 +142,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 suffix: IconButton(
                   icon: Icon(
                     _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                    color: Colors.grey.shade600,
+                    color: AppColors.muted,
                   ),
                   onPressed: () {
                     setState(() => _obscurePassword = !_obscurePassword);
@@ -164,7 +160,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 suffix: IconButton(
                   icon: Icon(
                     _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                    color: Colors.grey.shade600,
+                    color: AppColors.muted,
                   ),
                   onPressed: () {
                     setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);

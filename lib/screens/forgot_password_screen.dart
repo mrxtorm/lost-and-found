@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_feedback.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
@@ -29,16 +31,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final email = _emailController.text.trim();
 
     if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter your email.")),
-      );
+      AppSnack.show(context, "Please enter your email.", kind: SnackKind.error);
       return;
     }
 
     if (!_isValidEmail(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter a valid email address.")),
-      );
+      AppSnack.show(context, "Please enter a valid email address.", kind: SnackKind.error);
       return;
     }
 
@@ -52,9 +50,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
+        AppSnack.show(context, e.toString(), kind: SnackKind.info);
       }
     }
   }
@@ -67,7 +63,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       filled: true,
-      fillColor: Colors.grey.shade50,
+      fillColor: AppColors.bg,
     );
   }
 
@@ -89,24 +85,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               const SizedBox(height: 20),
               CircleAvatar(
                 radius: 40,
-                backgroundColor: _emailSent ? Colors.green.shade50 : Colors.blue.shade50,
+                backgroundColor: _emailSent ? AppColors.foundSoft : AppColors.primarySoft,
                 child: Icon(
                   _emailSent ? Icons.mark_email_read_outlined : Icons.lock_reset,
                   size: 40,
-                  color: _emailSent ? Colors.green.shade700 : Colors.blue.shade700,
+                  color: _emailSent ? AppColors.found : AppColors.primary,
                 ),
               ),
               const SizedBox(height: 20),
               Text(
                 "Didn't see it? Check your spam or junk folder.",
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 12, color: AppColors.muted),
               ),
               const SizedBox(height: 6),
               Text(
                 _emailSent
                     ? "We've sent a password reset link to ${_emailController.text.trim()}. Check your inbox and spam folder."
                     : "Enter your university email and we'll send you a link to reset your password.",
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.4),
+                style: TextStyle(fontSize: 14, color: AppColors.muted, height: 1.4),
               ),
               const SizedBox(height: 28),
               if (!_emailSent) ...[

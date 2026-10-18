@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
@@ -48,7 +49,7 @@ class _SplashScreenState extends State<SplashScreen> {
             Icon(
               Icons.find_in_page,
               size: 100,
-              color: Colors.blue.shade700,
+              color: AppColors.primary,
             ),
             const SizedBox(height: 20),
             const Text(
@@ -62,7 +63,7 @@ class _SplashScreenState extends State<SplashScreen> {
             const Text(
               "Find What Matters",
               style: TextStyle(
-                color: Colors.grey,
+                color: AppColors.muted,
                 fontSize: 16,
               ),
             ),

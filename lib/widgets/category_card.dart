@@ -20,10 +20,18 @@ class CategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: '$title category',
+      excludeSemantics: true,
+      child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
+        constraints: const BoxConstraints(minHeight: 44),
+        alignment: Alignment.center,
         padding: const EdgeInsets.fromLTRB(12, 9, 14, 9),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.ink : Colors.white,
@@ -47,6 +55,7 @@ class CategoryCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

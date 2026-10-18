@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/feedback_model.dart';
 import '../services/feedback_service.dart';
 import '../theme/app_theme.dart';
+import 'app_feedback.dart';
 import 'celebration_overlay.dart';
 
 /// Celebrates a completed return, then (optionally) asks for feedback.
@@ -75,11 +76,8 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
         recommendation: _controller.text,
       );
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
+      AppSnack.success(context, 'Thanks for your feedback!');
       Navigator.pop(context);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Thanks for your feedback!')),
-      );
     } catch (e) {
       if (!mounted) return;
       setState(() {

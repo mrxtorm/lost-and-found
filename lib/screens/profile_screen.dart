@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_feedback.dart';
 import 'package:provider/provider.dart';
 
 import '../data/local/app_database.dart';
@@ -90,17 +92,8 @@ class ProfileScreen extends StatelessWidget {
 
     final email = user?.email ?? "No email";
 
-    // Real "My Activity" counts, computed from the signed-in user's own
-    // posts instead of hardcoded placeholder numbers.
-    final myPosts = itemProvider.myPosts;
-    final postsCount = myPosts.length;
-    final lostCount =
-        myPosts.where((item) => item.status.toLowerCase() == 'lost').length;
-    final foundCount =
-        myPosts.where((item) => item.status.toLowerCase() == 'found').length;
-
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -131,11 +124,11 @@ class ProfileScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 45,
-                    backgroundColor: Colors.blue.shade100,
+                    backgroundColor: AppColors.primarySoft,
                     child: Icon(
                       Icons.person,
                       size: 55,
-                      color: Colors.blue.shade700,
+                      color: AppColors.primary,
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -151,7 +144,7 @@ class ProfileScreen extends StatelessWidget {
                   Text(
                     email,
                     style: TextStyle(
-                      color: Colors.grey.shade600,
+                      color: AppColors.muted,
                       fontSize: 14,
                     ),
                   ),
@@ -168,46 +161,6 @@ class ProfileScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 20),
-
-            const Text(
-              "My Activity",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 12),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    icon: Icons.article_outlined,
-                    value: "$postsCount",
-                    label: "Posts",
-                    color: Colors.blue,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    icon: Icons.search,
-                    value: "$lostCount",
-                    label: "Lost",
-                    color: Colors.red,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    icon: Icons.check_circle_outline,
-                    value: "$foundCount",
-                    label: "Found",
-                    color: Colors.green,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 25),
 
             const Text(
               "Account",
@@ -267,17 +220,17 @@ class ProfileScreen extends StatelessWidget {
               height: 52,
               child: OutlinedButton.icon(
                 onPressed: () => _showLogoutDialog(context),
-                icon: const Icon(Icons.logout, color: Colors.red),
+                icon: const Icon(Icons.logout, color: AppColors.lost),
                 label: const Text(
                   "Log Out",
                   style: TextStyle(
-                    color: Colors.red,
+                    color: AppColors.lost,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.red),
+                  side: const BorderSide(color: AppColors.lost),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -292,7 +245,7 @@ class ProfileScreen extends StatelessWidget {
                 "Campus Lost & Found\nVersion 1.0.0",
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.grey.shade500,
+                  color: AppColors.muted,
                   fontSize: 12,
                   height: 1.5,
                 ),
@@ -302,36 +255,6 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 20),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatCard({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
-        ],
       ),
     );
   }
@@ -355,10 +278,10 @@ class ProfileScreen extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: Colors.blue.shade50,
+            color: AppColors.primarySoft,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, color: Colors.blue),
+          child: Icon(icon, color: AppColors.primary),
         ),
         title: Text(
           title,
@@ -366,12 +289,12 @@ class ProfileScreen extends StatelessWidget {
         ),
         subtitle: Text(
           subtitle,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 12, color: AppColors.muted),
         ),
         trailing: Icon(
           Icons.arrow_forward_ios,
           size: 16,
-          color: Colors.grey.shade400,
+          color: AppColors.muted,
         ),
         onTap: onTap,
       ),
@@ -379,9 +302,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("$feature will be implemented later.")),
-    );
+    AppSnack.show(context, "$feature will be implemented later.", kind: SnackKind.info);
   }
 
   void _showAboutDialog(BuildContext context) {
