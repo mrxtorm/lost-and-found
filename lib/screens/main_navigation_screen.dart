@@ -9,14 +9,16 @@ import '../providers/chat_provider.dart';
 import '../providers/claim_provider.dart';
 import '../providers/item_provider.dart';
 import '../providers/notification_provider.dart';
+import '../services/onboarding_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_feedback.dart';
+import '../widgets/spotlight_tour.dart';
+import 'app_tour.dart';
 import 'home_screen.dart';
 import 'messages_screen.dart';
 import 'my_posts_screen.dart';
 import 'notifications_screen.dart';
 import 'profile_screen.dart';
-
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -39,6 +41,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   void initState() {
     super.initState();
+    AppTour.register(_startTour);
     // Bind the signed-in user's uid to the providers that scope their
     // data per-user, now that we know a user is actually signed in. This
     // also kicks off each repository's live Firestore listener and an
@@ -51,9 +54,39 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       context.read<ClaimProvider>().setCurrentUserId(uid);
       context.read<NotificationProvider>().setCurrentUserId(uid);
       context.read<SyncManager>().setCurrentUserId(uid);
+      if (uid != null) _maybeOfferTour(uid);
     });
   }
 
+  /// Offers the optional app tour once per user on this device.
+  Future<void> _maybeOfferTour(String uid) async {
+    final onboarding = OnboardingService();
+    if (await onboarding.hasBeenOffered(uid)) return;
+    if (!mounted) return;
+    // Mark first so the prompt never repeats, whatever the user chooses.
+    await onboarding.markOffered(uid);
+    if (!mounted) return;
+    if (await offerAppTour(context) && mounted) {
+      await _startTour();
+    }
+  }
+
+  /// Switches to Home (where the highlighted buttons live) and runs the tour.
+  Future<void> _startTour() async {
+    if (!mounted) return;
+    if (selectedIndex != 0) setState(() => selectedIndex = 0);
+    // Let the Home tab lay out before measuring its widgets.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    final firstPost = context.read<ItemProvider>().homeItems.firstOrNull;
+    await showSpotlightTour(context, AppTour.steps(firstPost: firstPost));
+  }
+
+  @override
+  void dispose() {
+    AppTour.register(null);
+    super.dispose();
+  }
 
   /// Wraps [icon] in a red badge showing [count]; hidden when it is zero.
   Widget _badged(int count, Widget icon) {
@@ -69,43 +102,42 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     // Selecting just the counts rebuilds only when a badge value changes.
-    final unreadMessages =
-        context.select<ChatProvider, int>((p) => p.totalUnreadCount);
-    final unreadNotifications =
-        context.select<NotificationProvider, int>((p) => p.unreadCount);
+    final unreadMessages = context.select<ChatProvider, int>(
+      (p) => p.totalUnreadCount,
+    );
+    final unreadNotifications = context.select<NotificationProvider, int>(
+      (p) => p.unreadCount,
+    );
 
     return Scaffold(
       body: Column(
         children: [
           // Tells the user why things may not update right away.
-          Builder(builder: (context) {
-            final connectivity = context.read<ConnectivityService>();
-            return StreamBuilder<bool>(
-              stream: connectivity.onConnectivityChanged,
-              initialData: connectivity.isOnlineNow,
-              builder: (context, snapshot) {
-                final online = snapshot.data ?? true;
-                return AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  child: online
-                      ? const SizedBox(width: double.infinity)
-                      : SafeArea(
-                          bottom: false,
-                          child: const OfflineBanner(),
-                        ),
-                );
-              },
-            );
-          }),
+          Builder(
+            builder: (context) {
+              final connectivity = context.read<ConnectivityService>();
+              return StreamBuilder<bool>(
+                stream: connectivity.onConnectivityChanged,
+                initialData: connectivity.isOnlineNow,
+                builder: (context, snapshot) {
+                  final online = snapshot.data ?? true;
+                  return AnimatedSize(
+                    duration: const Duration(milliseconds: 200),
+                    child: online
+                        ? const SizedBox(width: double.infinity)
+                        : SafeArea(bottom: false, child: const OfflineBanner()),
+                  );
+                },
+              );
+            },
+          ),
           Expanded(
-            child: IndexedStack(
-              index: selectedIndex,
-              children: screens,
-            ),
+            child: IndexedStack(index: selectedIndex, children: screens),
           ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
+        key: AppTour.navBarKey,
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
           if (index != selectedIndex) HapticFeedback.selectionClick();
@@ -118,8 +150,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             label: 'Home',
           ),
           NavigationDestination(
-            icon: _badged(unreadMessages, const Icon(Icons.chat_bubble_outline)),
-            selectedIcon: _badged(unreadMessages, const Icon(Icons.chat_bubble)),
+            icon: _badged(
+              unreadMessages,
+              const Icon(Icons.chat_bubble_outline),
+            ),
+            selectedIcon: _badged(
+              unreadMessages,
+              const Icon(Icons.chat_bubble),
+            ),
             label: 'Messages',
           ),
           const NavigationDestination(

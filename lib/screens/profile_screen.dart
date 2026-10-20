@@ -18,6 +18,7 @@ import 'edit_profile_screen.dart';
 import 'help_support_screen.dart';
 import 'login_screen.dart';
 import 'notification_settings_screen.dart';
+import 'app_tour.dart';
 import 'personal_information_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -245,6 +246,13 @@ class ProfileScreen extends StatelessWidget {
               title: "Help & Support",
               subtitle: "Get help with the application",
               onTap: () => _open(context, const HelpSupportScreen()),
+            ),
+
+            _buildMenuCard(
+              icon: Icons.explore_outlined,
+              title: "App Tour",
+              subtitle: "See the main features again",
+              onTap: () => AppTour.replay(context),
             ),
 
             const SizedBox(height: 25),
