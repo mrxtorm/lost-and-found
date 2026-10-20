@@ -36,6 +36,14 @@ class ItemService {
     });
   }
 
+  /// One item straight from the server, or null if it was deleted.
+  Future<ItemModel?> fetchItem(String itemId) async {
+    final doc = await _items.doc(itemId).get(
+          const GetOptions(source: Source.server),
+        );
+    return doc.exists ? ItemModel.fromDoc(doc) : null;
+  }
+
   /// One-off fetch (as opposed to [streamItems]'s live listener). Used for
   /// pull-to-refresh, where the user wants an explicit "check now" rather
   /// than waiting on the listener.
@@ -121,6 +129,7 @@ class ItemService {
       imageUrl: imageUrl,
       imageUrls: imageUrls,
       username: username,
+      ownerPhotoUrl: user.photoURL ?? '',
 
       // IMPORTANT
       ownerId: user.uid,

@@ -121,6 +121,15 @@ class _AccessGateState extends State<AccessGate> {
   }
 
   Future<void> _declineAndSignOut() async {
+    final ok = await confirmAction(
+      context,
+      title: 'Decline and sign out?',
+      message: 'You need to accept the Terms to use the app. You will be '
+          'signed out and can accept them next time you sign in.',
+      confirmLabel: 'Sign out',
+      icon: Icons.logout,
+    );
+    if (!ok || !mounted) return;
     await context.read<AuthProvider>().signOut();
     _goToLogin();
   }
@@ -207,7 +216,7 @@ class _AcceptTermsPrompt extends StatelessWidget {
               Text(
                 'You must review and accept the Terms of Service and User '
                 'Agreement (version ${TermsService.currentVersion}) to use '
-                'Campus Lost & Found.',
+                'FoundIt.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 14, color: AppColors.muted),
               ),

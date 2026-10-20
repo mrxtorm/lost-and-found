@@ -222,13 +222,12 @@ class _LoginScreenState extends State<LoginScreen> {
               if (_selectedAccount != null)
                 _accountAvatar(_selectedAccount!, radius: 46)
               else
-                CircleAvatar(
-                  radius: 46,
-                  backgroundColor: AppColors.primarySoft,
-                  child: Icon(
-                    Icons.lock_outline,
-                    size: 46,
-                    color: AppColors.primary,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(22),
+                  child: Image.asset(
+                    'assets/icon/app_icon.png',
+                    width: 92,
+                    height: 92,
                   ),
                 ),
               const SizedBox(height: 20),

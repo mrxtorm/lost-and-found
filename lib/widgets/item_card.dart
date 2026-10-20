@@ -90,7 +90,7 @@ class ItemCard extends StatelessWidget {
         label: '$type item: ${item.title}, posted by ${item.username}'
             '${subtitle.isNotEmpty ? ', $subtitle' : ''}. Double tap to open.',
         child: Material(
-        color: Colors.white,
+        color: AppColors.surface,
         child: InkWell(
           onTap: () => _open(context),
           child: Padding(
@@ -101,7 +101,11 @@ class ItemCard extends StatelessWidget {
                 // WHO POSTED
                 Row(
                   children: [
-                    UserAvatar(name: item.username, size: 40),
+                    UserAvatar(
+                      name: item.username,
+                      photoUrl: item.ownerPhotoUrl,
+                      size: 40,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -111,7 +115,7 @@ class ItemCard extends StatelessWidget {
                             item.username,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
                               color: AppColors.ink,
@@ -120,7 +124,7 @@ class ItemCard extends StatelessWidget {
                           if (subtitle.isNotEmpty)
                             Text(
                               subtitle,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12.5,
                                 color: AppColors.muted,
                               ),
@@ -191,14 +195,86 @@ class ItemCard extends StatelessWidget {
                   item.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 19,
+                  style: TextStyle(
+                    fontSize: 20,
                     fontWeight: FontWeight.w800,
                     height: 1.2,
                     letterSpacing: -0.2,
                     color: AppColors.ink,
                   ),
                 ),
+
+                // WHERE
+                if (item.location.trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on_outlined,
+                        size: 18,
+                        color: AppColors.muted,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          '${type == 'Lost' ? 'Last seen at' : 'Found at'} '
+                          '${item.location.trim()}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            color: AppColors.muted,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+                // WHAT YOU CAN DO (plain-language hint for new users)
+                if (item.ownerId != currentUid) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor(type).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          type == 'Lost'
+                              ? Icons.chat_bubble_outline_rounded
+                              : Icons.back_hand_outlined,
+                          size: 18,
+                          color: statusColor(type),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            type == 'Lost'
+                                ? 'Seen this? Tap to message the owner.'
+                                : 'Is this yours? Tap to claim it.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: statusColor(type),
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 20,
+                          color: statusColor(type),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

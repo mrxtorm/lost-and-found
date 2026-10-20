@@ -142,6 +142,18 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, ItemRow> {
     requiredDuringInsert: false,
     defaultValue: const Constant('Unknown'),
   );
+  static const VerificationMeta _ownerPhotoUrlMeta = const VerificationMeta(
+    'ownerPhotoUrl',
+  );
+  @override
+  late final GeneratedColumn<String> ownerPhotoUrl = GeneratedColumn<String>(
+    'owner_photo_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _ownerIdMeta = const VerificationMeta(
     'ownerId',
   );
@@ -174,6 +186,50 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, ItemRow> {
     aliasedName,
     true,
     type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _claimedAtMeta = const VerificationMeta(
+    'claimedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> claimedAt = GeneratedColumn<DateTime>(
+    'claimed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _claimedByMeta = const VerificationMeta(
+    'claimedBy',
+  );
+  @override
+  late final GeneratedColumn<String> claimedBy = GeneratedColumn<String>(
+    'claimed_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _claimedByNameMeta = const VerificationMeta(
+    'claimedByName',
+  );
+  @override
+  late final GeneratedColumn<String> claimedByName = GeneratedColumn<String>(
+    'claimed_by_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _claimedFromMeta = const VerificationMeta(
+    'claimedFrom',
+  );
+  @override
+  late final GeneratedColumn<String> claimedFrom = GeneratedColumn<String>(
+    'claimed_from',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
@@ -260,9 +316,14 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, ItemRow> {
     imageUrls,
     localImagePaths,
     username,
+    ownerPhotoUrl,
     ownerId,
     verificationQuestion,
     createdAt,
+    claimedAt,
+    claimedBy,
+    claimedByName,
+    claimedFrom,
     updatedAt,
     synced,
     pendingCreate,
@@ -361,6 +422,15 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, ItemRow> {
         username.isAcceptableOrUnknown(data['username']!, _usernameMeta),
       );
     }
+    if (data.containsKey('owner_photo_url')) {
+      context.handle(
+        _ownerPhotoUrlMeta,
+        ownerPhotoUrl.isAcceptableOrUnknown(
+          data['owner_photo_url']!,
+          _ownerPhotoUrlMeta,
+        ),
+      );
+    }
     if (data.containsKey('owner_id')) {
       context.handle(
         _ownerIdMeta,
@@ -380,6 +450,36 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, ItemRow> {
       context.handle(
         _createdAtMeta,
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('claimed_at')) {
+      context.handle(
+        _claimedAtMeta,
+        claimedAt.isAcceptableOrUnknown(data['claimed_at']!, _claimedAtMeta),
+      );
+    }
+    if (data.containsKey('claimed_by')) {
+      context.handle(
+        _claimedByMeta,
+        claimedBy.isAcceptableOrUnknown(data['claimed_by']!, _claimedByMeta),
+      );
+    }
+    if (data.containsKey('claimed_by_name')) {
+      context.handle(
+        _claimedByNameMeta,
+        claimedByName.isAcceptableOrUnknown(
+          data['claimed_by_name']!,
+          _claimedByNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('claimed_from')) {
+      context.handle(
+        _claimedFromMeta,
+        claimedFrom.isAcceptableOrUnknown(
+          data['claimed_from']!,
+          _claimedFromMeta,
+        ),
       );
     }
     if (data.containsKey('updated_at')) {
@@ -478,6 +578,10 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, ItemRow> {
         DriftSqlType.string,
         data['${effectivePrefix}username'],
       )!,
+      ownerPhotoUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_photo_url'],
+      )!,
       ownerId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}owner_id'],
@@ -489,6 +593,22 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, ItemRow> {
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
+      ),
+      claimedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}claimed_at'],
+      ),
+      claimedBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}claimed_by'],
+      ),
+      claimedByName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}claimed_by_name'],
+      ),
+      claimedFrom: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}claimed_from'],
       ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -545,9 +665,16 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
   /// haven't been uploaded yet. Empty once all are uploaded.
   final String localImagePaths;
   final String username;
+  final String ownerPhotoUrl;
   final String ownerId;
   final String? verificationQuestion;
   final DateTime? createdAt;
+
+  /// Claim/archive details (see ItemModel). Null unless status is Claimed.
+  final DateTime? claimedAt;
+  final String? claimedBy;
+  final String? claimedByName;
+  final String? claimedFrom;
 
   /// Last time this row changed locally. Used for last-write-wins conflict
   /// resolution against the server's `createdAt`/incoming snapshot data.
@@ -569,9 +696,14 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
     required this.imageUrls,
     required this.localImagePaths,
     required this.username,
+    required this.ownerPhotoUrl,
     required this.ownerId,
     this.verificationQuestion,
     this.createdAt,
+    this.claimedAt,
+    this.claimedBy,
+    this.claimedByName,
+    this.claimedFrom,
     required this.updatedAt,
     required this.synced,
     required this.pendingCreate,
@@ -595,12 +727,25 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
     map['image_urls'] = Variable<String>(imageUrls);
     map['local_image_paths'] = Variable<String>(localImagePaths);
     map['username'] = Variable<String>(username);
+    map['owner_photo_url'] = Variable<String>(ownerPhotoUrl);
     map['owner_id'] = Variable<String>(ownerId);
     if (!nullToAbsent || verificationQuestion != null) {
       map['verification_question'] = Variable<String>(verificationQuestion);
     }
     if (!nullToAbsent || createdAt != null) {
       map['created_at'] = Variable<DateTime>(createdAt);
+    }
+    if (!nullToAbsent || claimedAt != null) {
+      map['claimed_at'] = Variable<DateTime>(claimedAt);
+    }
+    if (!nullToAbsent || claimedBy != null) {
+      map['claimed_by'] = Variable<String>(claimedBy);
+    }
+    if (!nullToAbsent || claimedByName != null) {
+      map['claimed_by_name'] = Variable<String>(claimedByName);
+    }
+    if (!nullToAbsent || claimedFrom != null) {
+      map['claimed_from'] = Variable<String>(claimedFrom);
     }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['synced'] = Variable<bool>(synced);
@@ -626,6 +771,7 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
       imageUrls: Value(imageUrls),
       localImagePaths: Value(localImagePaths),
       username: Value(username),
+      ownerPhotoUrl: Value(ownerPhotoUrl),
       ownerId: Value(ownerId),
       verificationQuestion: verificationQuestion == null && nullToAbsent
           ? const Value.absent()
@@ -633,6 +779,18 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
       createdAt: createdAt == null && nullToAbsent
           ? const Value.absent()
           : Value(createdAt),
+      claimedAt: claimedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(claimedAt),
+      claimedBy: claimedBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(claimedBy),
+      claimedByName: claimedByName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(claimedByName),
+      claimedFrom: claimedFrom == null && nullToAbsent
+          ? const Value.absent()
+          : Value(claimedFrom),
       updatedAt: Value(updatedAt),
       synced: Value(synced),
       pendingCreate: Value(pendingCreate),
@@ -659,11 +817,16 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
       imageUrls: serializer.fromJson<String>(json['imageUrls']),
       localImagePaths: serializer.fromJson<String>(json['localImagePaths']),
       username: serializer.fromJson<String>(json['username']),
+      ownerPhotoUrl: serializer.fromJson<String>(json['ownerPhotoUrl']),
       ownerId: serializer.fromJson<String>(json['ownerId']),
       verificationQuestion: serializer.fromJson<String?>(
         json['verificationQuestion'],
       ),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
+      claimedAt: serializer.fromJson<DateTime?>(json['claimedAt']),
+      claimedBy: serializer.fromJson<String?>(json['claimedBy']),
+      claimedByName: serializer.fromJson<String?>(json['claimedByName']),
+      claimedFrom: serializer.fromJson<String?>(json['claimedFrom']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       synced: serializer.fromJson<bool>(json['synced']),
       pendingCreate: serializer.fromJson<bool>(json['pendingCreate']),
@@ -687,9 +850,14 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
       'imageUrls': serializer.toJson<String>(imageUrls),
       'localImagePaths': serializer.toJson<String>(localImagePaths),
       'username': serializer.toJson<String>(username),
+      'ownerPhotoUrl': serializer.toJson<String>(ownerPhotoUrl),
       'ownerId': serializer.toJson<String>(ownerId),
       'verificationQuestion': serializer.toJson<String?>(verificationQuestion),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
+      'claimedAt': serializer.toJson<DateTime?>(claimedAt),
+      'claimedBy': serializer.toJson<String?>(claimedBy),
+      'claimedByName': serializer.toJson<String?>(claimedByName),
+      'claimedFrom': serializer.toJson<String?>(claimedFrom),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'synced': serializer.toJson<bool>(synced),
       'pendingCreate': serializer.toJson<bool>(pendingCreate),
@@ -711,9 +879,14 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
     String? imageUrls,
     String? localImagePaths,
     String? username,
+    String? ownerPhotoUrl,
     String? ownerId,
     Value<String?> verificationQuestion = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
+    Value<DateTime?> claimedAt = const Value.absent(),
+    Value<String?> claimedBy = const Value.absent(),
+    Value<String?> claimedByName = const Value.absent(),
+    Value<String?> claimedFrom = const Value.absent(),
     DateTime? updatedAt,
     bool? synced,
     bool? pendingCreate,
@@ -734,11 +907,18 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
     imageUrls: imageUrls ?? this.imageUrls,
     localImagePaths: localImagePaths ?? this.localImagePaths,
     username: username ?? this.username,
+    ownerPhotoUrl: ownerPhotoUrl ?? this.ownerPhotoUrl,
     ownerId: ownerId ?? this.ownerId,
     verificationQuestion: verificationQuestion.present
         ? verificationQuestion.value
         : this.verificationQuestion,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
+    claimedAt: claimedAt.present ? claimedAt.value : this.claimedAt,
+    claimedBy: claimedBy.present ? claimedBy.value : this.claimedBy,
+    claimedByName: claimedByName.present
+        ? claimedByName.value
+        : this.claimedByName,
+    claimedFrom: claimedFrom.present ? claimedFrom.value : this.claimedFrom,
     updatedAt: updatedAt ?? this.updatedAt,
     synced: synced ?? this.synced,
     pendingCreate: pendingCreate ?? this.pendingCreate,
@@ -765,11 +945,22 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
           ? data.localImagePaths.value
           : this.localImagePaths,
       username: data.username.present ? data.username.value : this.username,
+      ownerPhotoUrl: data.ownerPhotoUrl.present
+          ? data.ownerPhotoUrl.value
+          : this.ownerPhotoUrl,
       ownerId: data.ownerId.present ? data.ownerId.value : this.ownerId,
       verificationQuestion: data.verificationQuestion.present
           ? data.verificationQuestion.value
           : this.verificationQuestion,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      claimedAt: data.claimedAt.present ? data.claimedAt.value : this.claimedAt,
+      claimedBy: data.claimedBy.present ? data.claimedBy.value : this.claimedBy,
+      claimedByName: data.claimedByName.present
+          ? data.claimedByName.value
+          : this.claimedByName,
+      claimedFrom: data.claimedFrom.present
+          ? data.claimedFrom.value
+          : this.claimedFrom,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       synced: data.synced.present ? data.synced.value : this.synced,
       pendingCreate: data.pendingCreate.present
@@ -799,9 +990,14 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
           ..write('imageUrls: $imageUrls, ')
           ..write('localImagePaths: $localImagePaths, ')
           ..write('username: $username, ')
+          ..write('ownerPhotoUrl: $ownerPhotoUrl, ')
           ..write('ownerId: $ownerId, ')
           ..write('verificationQuestion: $verificationQuestion, ')
           ..write('createdAt: $createdAt, ')
+          ..write('claimedAt: $claimedAt, ')
+          ..write('claimedBy: $claimedBy, ')
+          ..write('claimedByName: $claimedByName, ')
+          ..write('claimedFrom: $claimedFrom, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('synced: $synced, ')
           ..write('pendingCreate: $pendingCreate, ')
@@ -812,7 +1008,7 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     title,
     description,
@@ -825,15 +1021,20 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
     imageUrls,
     localImagePaths,
     username,
+    ownerPhotoUrl,
     ownerId,
     verificationQuestion,
     createdAt,
+    claimedAt,
+    claimedBy,
+    claimedByName,
+    claimedFrom,
     updatedAt,
     synced,
     pendingCreate,
     pendingUpdate,
     pendingDelete,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -850,9 +1051,14 @@ class ItemRow extends DataClass implements Insertable<ItemRow> {
           other.imageUrls == this.imageUrls &&
           other.localImagePaths == this.localImagePaths &&
           other.username == this.username &&
+          other.ownerPhotoUrl == this.ownerPhotoUrl &&
           other.ownerId == this.ownerId &&
           other.verificationQuestion == this.verificationQuestion &&
           other.createdAt == this.createdAt &&
+          other.claimedAt == this.claimedAt &&
+          other.claimedBy == this.claimedBy &&
+          other.claimedByName == this.claimedByName &&
+          other.claimedFrom == this.claimedFrom &&
           other.updatedAt == this.updatedAt &&
           other.synced == this.synced &&
           other.pendingCreate == this.pendingCreate &&
@@ -873,9 +1079,14 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
   final Value<String> imageUrls;
   final Value<String> localImagePaths;
   final Value<String> username;
+  final Value<String> ownerPhotoUrl;
   final Value<String> ownerId;
   final Value<String?> verificationQuestion;
   final Value<DateTime?> createdAt;
+  final Value<DateTime?> claimedAt;
+  final Value<String?> claimedBy;
+  final Value<String?> claimedByName;
+  final Value<String?> claimedFrom;
   final Value<DateTime> updatedAt;
   final Value<bool> synced;
   final Value<bool> pendingCreate;
@@ -895,9 +1106,14 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
     this.imageUrls = const Value.absent(),
     this.localImagePaths = const Value.absent(),
     this.username = const Value.absent(),
+    this.ownerPhotoUrl = const Value.absent(),
     this.ownerId = const Value.absent(),
     this.verificationQuestion = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.claimedAt = const Value.absent(),
+    this.claimedBy = const Value.absent(),
+    this.claimedByName = const Value.absent(),
+    this.claimedFrom = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.synced = const Value.absent(),
     this.pendingCreate = const Value.absent(),
@@ -918,9 +1134,14 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
     this.imageUrls = const Value.absent(),
     this.localImagePaths = const Value.absent(),
     this.username = const Value.absent(),
+    this.ownerPhotoUrl = const Value.absent(),
     this.ownerId = const Value.absent(),
     this.verificationQuestion = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.claimedAt = const Value.absent(),
+    this.claimedBy = const Value.absent(),
+    this.claimedByName = const Value.absent(),
+    this.claimedFrom = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.synced = const Value.absent(),
     this.pendingCreate = const Value.absent(),
@@ -941,9 +1162,14 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
     Expression<String>? imageUrls,
     Expression<String>? localImagePaths,
     Expression<String>? username,
+    Expression<String>? ownerPhotoUrl,
     Expression<String>? ownerId,
     Expression<String>? verificationQuestion,
     Expression<DateTime>? createdAt,
+    Expression<DateTime>? claimedAt,
+    Expression<String>? claimedBy,
+    Expression<String>? claimedByName,
+    Expression<String>? claimedFrom,
     Expression<DateTime>? updatedAt,
     Expression<bool>? synced,
     Expression<bool>? pendingCreate,
@@ -964,10 +1190,15 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
       if (imageUrls != null) 'image_urls': imageUrls,
       if (localImagePaths != null) 'local_image_paths': localImagePaths,
       if (username != null) 'username': username,
+      if (ownerPhotoUrl != null) 'owner_photo_url': ownerPhotoUrl,
       if (ownerId != null) 'owner_id': ownerId,
       if (verificationQuestion != null)
         'verification_question': verificationQuestion,
       if (createdAt != null) 'created_at': createdAt,
+      if (claimedAt != null) 'claimed_at': claimedAt,
+      if (claimedBy != null) 'claimed_by': claimedBy,
+      if (claimedByName != null) 'claimed_by_name': claimedByName,
+      if (claimedFrom != null) 'claimed_from': claimedFrom,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (synced != null) 'synced': synced,
       if (pendingCreate != null) 'pending_create': pendingCreate,
@@ -990,9 +1221,14 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
     Value<String>? imageUrls,
     Value<String>? localImagePaths,
     Value<String>? username,
+    Value<String>? ownerPhotoUrl,
     Value<String>? ownerId,
     Value<String?>? verificationQuestion,
     Value<DateTime?>? createdAt,
+    Value<DateTime?>? claimedAt,
+    Value<String?>? claimedBy,
+    Value<String?>? claimedByName,
+    Value<String?>? claimedFrom,
     Value<DateTime>? updatedAt,
     Value<bool>? synced,
     Value<bool>? pendingCreate,
@@ -1013,9 +1249,14 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
       imageUrls: imageUrls ?? this.imageUrls,
       localImagePaths: localImagePaths ?? this.localImagePaths,
       username: username ?? this.username,
+      ownerPhotoUrl: ownerPhotoUrl ?? this.ownerPhotoUrl,
       ownerId: ownerId ?? this.ownerId,
       verificationQuestion: verificationQuestion ?? this.verificationQuestion,
       createdAt: createdAt ?? this.createdAt,
+      claimedAt: claimedAt ?? this.claimedAt,
+      claimedBy: claimedBy ?? this.claimedBy,
+      claimedByName: claimedByName ?? this.claimedByName,
+      claimedFrom: claimedFrom ?? this.claimedFrom,
       updatedAt: updatedAt ?? this.updatedAt,
       synced: synced ?? this.synced,
       pendingCreate: pendingCreate ?? this.pendingCreate,
@@ -1064,6 +1305,9 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
     if (username.present) {
       map['username'] = Variable<String>(username.value);
     }
+    if (ownerPhotoUrl.present) {
+      map['owner_photo_url'] = Variable<String>(ownerPhotoUrl.value);
+    }
     if (ownerId.present) {
       map['owner_id'] = Variable<String>(ownerId.value);
     }
@@ -1074,6 +1318,18 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (claimedAt.present) {
+      map['claimed_at'] = Variable<DateTime>(claimedAt.value);
+    }
+    if (claimedBy.present) {
+      map['claimed_by'] = Variable<String>(claimedBy.value);
+    }
+    if (claimedByName.present) {
+      map['claimed_by_name'] = Variable<String>(claimedByName.value);
+    }
+    if (claimedFrom.present) {
+      map['claimed_from'] = Variable<String>(claimedFrom.value);
     }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
@@ -1111,9 +1367,14 @@ class ItemsCompanion extends UpdateCompanion<ItemRow> {
           ..write('imageUrls: $imageUrls, ')
           ..write('localImagePaths: $localImagePaths, ')
           ..write('username: $username, ')
+          ..write('ownerPhotoUrl: $ownerPhotoUrl, ')
           ..write('ownerId: $ownerId, ')
           ..write('verificationQuestion: $verificationQuestion, ')
           ..write('createdAt: $createdAt, ')
+          ..write('claimedAt: $claimedAt, ')
+          ..write('claimedBy: $claimedBy, ')
+          ..write('claimedByName: $claimedByName, ')
+          ..write('claimedFrom: $claimedFrom, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('synced: $synced, ')
           ..write('pendingCreate: $pendingCreate, ')
@@ -3977,9 +4238,14 @@ typedef $$ItemsTableCreateCompanionBuilder =
       Value<String> imageUrls,
       Value<String> localImagePaths,
       Value<String> username,
+      Value<String> ownerPhotoUrl,
       Value<String> ownerId,
       Value<String?> verificationQuestion,
       Value<DateTime?> createdAt,
+      Value<DateTime?> claimedAt,
+      Value<String?> claimedBy,
+      Value<String?> claimedByName,
+      Value<String?> claimedFrom,
       Value<DateTime> updatedAt,
       Value<bool> synced,
       Value<bool> pendingCreate,
@@ -4001,9 +4267,14 @@ typedef $$ItemsTableUpdateCompanionBuilder =
       Value<String> imageUrls,
       Value<String> localImagePaths,
       Value<String> username,
+      Value<String> ownerPhotoUrl,
       Value<String> ownerId,
       Value<String?> verificationQuestion,
       Value<DateTime?> createdAt,
+      Value<DateTime?> claimedAt,
+      Value<String?> claimedBy,
+      Value<String?> claimedByName,
+      Value<String?> claimedFrom,
       Value<DateTime> updatedAt,
       Value<bool> synced,
       Value<bool> pendingCreate,
@@ -4080,6 +4351,11 @@ class $$ItemsTableFilterComposer extends Composer<_$AppDatabase, $ItemsTable> {
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get ownerPhotoUrl => $composableBuilder(
+    column: $table.ownerPhotoUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get ownerId => $composableBuilder(
     column: $table.ownerId,
     builder: (column) => ColumnFilters(column),
@@ -4092,6 +4368,26 @@ class $$ItemsTableFilterComposer extends Composer<_$AppDatabase, $ItemsTable> {
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get claimedAt => $composableBuilder(
+    column: $table.claimedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get claimedBy => $composableBuilder(
+    column: $table.claimedBy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get claimedByName => $composableBuilder(
+    column: $table.claimedByName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get claimedFrom => $composableBuilder(
+    column: $table.claimedFrom,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4190,6 +4486,11 @@ class $$ItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get ownerPhotoUrl => $composableBuilder(
+    column: $table.ownerPhotoUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get ownerId => $composableBuilder(
     column: $table.ownerId,
     builder: (column) => ColumnOrderings(column),
@@ -4202,6 +4503,26 @@ class $$ItemsTableOrderingComposer
 
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get claimedAt => $composableBuilder(
+    column: $table.claimedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get claimedBy => $composableBuilder(
+    column: $table.claimedBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get claimedByName => $composableBuilder(
+    column: $table.claimedByName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get claimedFrom => $composableBuilder(
+    column: $table.claimedFrom,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -4282,6 +4603,11 @@ class $$ItemsTableAnnotationComposer
   GeneratedColumn<String> get username =>
       $composableBuilder(column: $table.username, builder: (column) => column);
 
+  GeneratedColumn<String> get ownerPhotoUrl => $composableBuilder(
+    column: $table.ownerPhotoUrl,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get ownerId =>
       $composableBuilder(column: $table.ownerId, builder: (column) => column);
 
@@ -4292,6 +4618,22 @@ class $$ItemsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get claimedAt =>
+      $composableBuilder(column: $table.claimedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get claimedBy =>
+      $composableBuilder(column: $table.claimedBy, builder: (column) => column);
+
+  GeneratedColumn<String> get claimedByName => $composableBuilder(
+    column: $table.claimedByName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get claimedFrom => $composableBuilder(
+    column: $table.claimedFrom,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
@@ -4355,9 +4697,14 @@ class $$ItemsTableTableManager
                 Value<String> imageUrls = const Value.absent(),
                 Value<String> localImagePaths = const Value.absent(),
                 Value<String> username = const Value.absent(),
+                Value<String> ownerPhotoUrl = const Value.absent(),
                 Value<String> ownerId = const Value.absent(),
                 Value<String?> verificationQuestion = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
+                Value<DateTime?> claimedAt = const Value.absent(),
+                Value<String?> claimedBy = const Value.absent(),
+                Value<String?> claimedByName = const Value.absent(),
+                Value<String?> claimedFrom = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<bool> synced = const Value.absent(),
                 Value<bool> pendingCreate = const Value.absent(),
@@ -4377,9 +4724,14 @@ class $$ItemsTableTableManager
                 imageUrls: imageUrls,
                 localImagePaths: localImagePaths,
                 username: username,
+                ownerPhotoUrl: ownerPhotoUrl,
                 ownerId: ownerId,
                 verificationQuestion: verificationQuestion,
                 createdAt: createdAt,
+                claimedAt: claimedAt,
+                claimedBy: claimedBy,
+                claimedByName: claimedByName,
+                claimedFrom: claimedFrom,
                 updatedAt: updatedAt,
                 synced: synced,
                 pendingCreate: pendingCreate,
@@ -4401,9 +4753,14 @@ class $$ItemsTableTableManager
                 Value<String> imageUrls = const Value.absent(),
                 Value<String> localImagePaths = const Value.absent(),
                 Value<String> username = const Value.absent(),
+                Value<String> ownerPhotoUrl = const Value.absent(),
                 Value<String> ownerId = const Value.absent(),
                 Value<String?> verificationQuestion = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
+                Value<DateTime?> claimedAt = const Value.absent(),
+                Value<String?> claimedBy = const Value.absent(),
+                Value<String?> claimedByName = const Value.absent(),
+                Value<String?> claimedFrom = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<bool> synced = const Value.absent(),
                 Value<bool> pendingCreate = const Value.absent(),
@@ -4423,9 +4780,14 @@ class $$ItemsTableTableManager
                 imageUrls: imageUrls,
                 localImagePaths: localImagePaths,
                 username: username,
+                ownerPhotoUrl: ownerPhotoUrl,
                 ownerId: ownerId,
                 verificationQuestion: verificationQuestion,
                 createdAt: createdAt,
+                claimedAt: claimedAt,
+                claimedBy: claimedBy,
+                claimedByName: claimedByName,
+                claimedFrom: claimedFrom,
                 updatedAt: updatedAt,
                 synced: synced,
                 pendingCreate: pendingCreate,

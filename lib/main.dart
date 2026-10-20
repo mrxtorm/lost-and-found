@@ -15,7 +15,9 @@ import 'providers/chat_provider.dart';
 import 'providers/claim_provider.dart';
 import 'providers/item_provider.dart';
 import 'providers/notification_provider.dart';
+import 'providers/theme_provider.dart';
 import 'screens/splash_screen.dart';
+import 'services/profile_sync_service.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -46,8 +48,13 @@ Future<void> main() async {
     claimRepository: claimRepository,
     chatRepository: chatRepository,
     notificationRepository: notificationRepository,
+    profileSyncService: ProfileSyncService(database: database),
   );
   syncManager.start();
+
+  // Applied before runApp so the first frame already uses the saved theme.
+  final themeController = ThemeController();
+  await themeController.load();
 
   runApp(CampusLostFoundApp(
     database: database,
@@ -57,6 +64,7 @@ Future<void> main() async {
     chatRepository: chatRepository,
     notificationRepository: notificationRepository,
     syncManager: syncManager,
+    themeController: themeController,
   ));
 }
 
@@ -68,6 +76,7 @@ class CampusLostFoundApp extends StatelessWidget {
   final ChatRepository chatRepository;
   final NotificationRepository notificationRepository;
   final SyncManager syncManager;
+  final ThemeController themeController;
 
   const CampusLostFoundApp({
     super.key,
@@ -78,6 +87,7 @@ class CampusLostFoundApp extends StatelessWidget {
     required this.chatRepository,
     required this.notificationRepository,
     required this.syncManager,
+    required this.themeController,
   });
 
   @override
@@ -91,6 +101,7 @@ class CampusLostFoundApp extends StatelessWidget {
         Provider<ChatRepository>.value(value: chatRepository),
         Provider<NotificationRepository>.value(value: notificationRepository),
         Provider<SyncManager>.value(value: syncManager),
+        ChangeNotifierProvider<ThemeController>.value(value: themeController),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ItemProvider(itemRepository)),
         ChangeNotifierProvider(create: (_) => ClaimProvider(claimRepository)),
@@ -99,11 +110,17 @@ class CampusLostFoundApp extends StatelessWidget {
           create: (_) => NotificationProvider(notificationRepository),
         ),
       ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Campus Lost & Found',
-        theme: AppTheme.light,
-        home: const SplashScreen(),
+      child: Consumer<ThemeController>(
+        builder: (context, theme, _) => MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'FoundIt',
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          // Resolved by ThemeController (not left to MaterialApp) so the
+          // Material theme always matches the AppColors palette.
+          themeMode: theme.isDark ? ThemeMode.dark : ThemeMode.light,
+          home: const SplashScreen(),
+        ),
       ),
     );
   }

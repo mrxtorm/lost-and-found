@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/item_ui.dart';
+import '../models/item_category.dart';
 
 import '../models/item_model.dart';
 import '../services/item_matching_service.dart';
@@ -39,7 +40,7 @@ class DraftMatchesScreen extends StatelessWidget {
         children: [
           Container(
             width: double.infinity,
-            color: Colors.white,
+            color: AppColors.surface,
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,7 +79,7 @@ class DraftMatchesScreen extends StatelessWidget {
           SafeArea(
             top: false,
             child: Container(
-              color: Colors.white,
+              color: AppColors.surface,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -157,7 +158,7 @@ class DraftMatchesScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${item.category}  •  ${item.location}',
+                      '${ItemCategory.canonical(item.category)}  •  ${item.location}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -199,7 +200,7 @@ class DraftMatchesScreen extends StatelessWidget {
   Widget _thumbnail(ItemModel item) {
     Widget placeholder() => Container(
       color: AppColors.line,
-      child: const Icon(Icons.image, color: AppColors.muted),
+      child: Icon(Icons.image, color: AppColors.muted),
     );
 
     Widget child;

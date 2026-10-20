@@ -46,20 +46,20 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
     return TextField(
       controller: _controller,
       textInputAction: TextInputAction.search,
-      style: const TextStyle(fontSize: 15.5, color: AppColors.ink),
+      style: TextStyle(fontSize: 15.5, color: AppColors.ink),
       onChanged: (value) {
         setState(() {});
         widget.onChanged?.call(value);
       },
       decoration: InputDecoration(
         hintText: 'Search lost or found items',
-        hintStyle: const TextStyle(color: AppColors.muted),
-        prefixIcon: const Icon(Icons.search_rounded, color: AppColors.muted),
+        hintStyle: TextStyle(color: AppColors.muted),
+        prefixIcon: Icon(Icons.search_rounded, color: AppColors.muted),
         suffixIcon: _controller.text.isEmpty
             ? null
             : IconButton(
           tooltip: 'Clear search',
-          icon: const Icon(Icons.close_rounded, color: AppColors.muted),
+          icon: Icon(Icons.close_rounded, color: AppColors.muted),
           onPressed: () {
             _controller.clear();
             setState(() {});
@@ -67,7 +67,7 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
           },
         ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: AppColors.surface,
         contentPadding: const EdgeInsets.symmetric(vertical: 14),
         border: _border(AppColors.line),
         enabledBorder: _border(AppColors.line),

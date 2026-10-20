@@ -99,7 +99,7 @@ SyncManager + ConnectivityService (lib/data/sync, lib/data/local)
    └── push queued changes when back online; Firestore listeners pull server data
 ```
 
-- **Startup order:** `main.dart` → Firebase init → AppDatabase / ConnectivityService / repositories / SyncManager → `SplashScreen` → `AccessGate` → `MainNavigationScreen` (bottom tabs: Home, My Posts, Messages, Notifications, Profile).
+- **Startup order:** `main.dart` → Firebase init → AppDatabase / ConnectivityService / repositories / SyncManager → `SplashScreen` → `AccessGate` → `MainNavigationScreen` (bottom tabs: Home, Messages, My Posts, Notifications, Profile).
 - **Business logic runs on the client.** This includes matching, notification creation and the cleanup after a return. Firestore Security Rules are the only server-side enforcement.
 
 ## 5. Technologies
@@ -122,10 +122,10 @@ SyncManager + ConnectivityService (lib/data/sync, lib/data/local)
 
 | Collection | Document ID | Fields | Written by |
 |---|---|---|---|
-| `items` | auto id | title, description, category, location, date (string), status (Lost/Found), imageUrl, imageUrls[], username, ownerId, verificationQuestion (Found only), createdAt | The post owner |
+| `items` | UUID v4 generated on the device (offline-first) | title, description, category, location, date (string), status (Lost/Found), imageUrl, imageUrls[], username, ownerId, verificationQuestion (Found only), createdAt | The post owner |
 | `claims` | `{itemId}_{claimantId}` | itemId, itemTitle, itemImageUrl, claimantId, claimantName, ownerId, answer, additionalDetails, status (Pending/Approved/Rejected), createdAt | The claimant creates it; the finder changes its status |
 | `conversations` | `{postId}_{uidA}_{uidB}` (sorted) | postId, itemName, itemImageUrl, itemType, participantIds[2], participantNames{}, lastMessage, lastMessageTime, unreadCounts{} | Participants |
-| `conversations/{id}/messages` | auto id or `claim_{itemId}…` | senderId, senderName, text (1–2000 chars), timestamp, isRead | Participants |
+| `conversations/{id}/messages` | UUID v4 generated on the device, or `claim_{itemId}…` for claim messages | senderId, senderName, text (1–2000 chars), timestamp, isRead | Participants |
 | `notifications` | auto id | recipientId, type, title, message, relatedItemId, relatedClaimId, isRead, createdAt | Created by another user's action (client-side) |
 | `termsAcceptances` | `{uid}_{version}` | userId, email, version, acceptedAt | The user; create-only |
 | `completedReturns` | `{itemId}_{claimantId}` | itemId, itemTitle, ownerId, claimantId, completedAt | The finder, at approval; immutable |
@@ -175,4 +175,4 @@ These are the tables `items`, `claims`, `conversations`, `messages` and `notific
 9. **Chat permissions.** Any participant can delete any message in a conversation. The participant names are supplied by the client and are not checked.
 10. **The item date is stored as a string**, not as a timestamp.
 11. **The app is not ready for release:** Android only, the default `com.example` application id, and the default Flutter README.
-12. **Uncommitted work.** This audit describes uncommitted changes to 25 files. Commit them before you finalize the documentation so the documentation matches a fixed version.
+12. **Version documented.** *Update (Oct 18, 2026):* the changes that were uncommitted at audit time were committed as `6b4124c` ("Backup"). All documentation describes that commit.

@@ -50,15 +50,153 @@ service cloud.firestore {
     }
 
     // ============================================================
-    // USERS (moderation state: offenseCount, bannedUntil)
-    // Server-managed. A user can read only their own document so the
-    // app can show warnings/ban status. Nobody can write from the app.
+    // ADMIN ROLE
+    // A user is an admin when admins/{uid} exists. That collection is
+    // created ONLY from the Firebase Console / Admin SDK: every client
+    // write is denied below, so nobody can promote themselves.
     // ============================================================
+    function isAdmin() {
+      return hasAccess()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
 
-    match /users/{userId} {
-      allow get: if request.auth != null && request.auth.uid == userId;
+    // Must match ReportTarget.removedMessageText in
+    // lib/models/report_model.dart.
+    function removedMessageText() {
+      return 'This message was removed by an admin.';
+    }
+
+    // A display name copied onto old activity when the user edits their
+    // profile (see ProfileSyncService). Keep in step with the 50-char
+    // limit on the Edit Profile screen.
+    function isValidDisplayName(name) {
+      return name is string && name.size() > 0 && name.size() <= 100;
+    }
+
+    // A profile photo URL copied onto old posts ('' = no photo).
+    function isValidPhotoUrl(url) {
+      return url is string && url.size() <= 1000;
+    }
+
+    // Owner refreshing their name/photo on a post after a profile edit.
+    function onlyRefreshesItemAuthor() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['username', 'ownerPhotoUrl'])
+        && isValidDisplayName(request.resource.data.username)
+        && isValidPhotoUrl(request.resource.data.get('ownerPhotoUrl', ''));
+    }
+
+    // ------------------------------------------------------------
+    // CLAIMED POSTS (archive)
+    // A post becomes Claimed (from Lost or Found), stays in its owner's
+    // archive for a few days where the claim can be undone (back to the
+    // status it came from), and is then deleted by the owner's app.
+    // ------------------------------------------------------------
+    function claimFields() {
+      return ['claimedAt', 'claimedBy', 'claimedByName', 'claimedFrom'];
+    }
+
+    // Owner closing or reopening a post: only the status and claim fields.
+    function onlyChangesClaim() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(claimFields().concat(['status']));
+    }
+
+    function isValidStatusChange() {
+      let before = resource.data.get('status', '');
+      let after = request.resource.data.get('status', '');
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let next = request.resource.data;
+      return (
+          // Status not entering or leaving Claimed: claim fields untouched.
+          (
+            ((before != 'Claimed' && after != 'Claimed')
+              || (before == 'Claimed' && after == 'Claimed'))
+            && !changed.hasAny(claimFields())
+          )
+          // Lost/Found -> Claimed, remembering where it came from.
+          || (
+            before in ['Lost', 'Found']
+            && after == 'Claimed'
+            && next.claimedFrom == before
+            && next.claimedAt is timestamp
+            && next.claimedBy is string
+            && next.claimedBy != request.auth.uid
+            && next.claimedByName is string
+            && next.claimedByName.size() <= 100
+          )
+          // Undo: Claimed -> the status it came from, claim fields removed.
+          || (
+            before == 'Claimed'
+            && after == resource.data.get('claimedFrom', '')
+            && !next.keys().hasAny(claimFields())
+          )
+        );
+    }
+
+    // True when the only change is `field`, set to a valid display name.
+    function onlyRenames(field) {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly([field])
+        && isValidDisplayName(request.resource.data[field]);
+    }
+
+    match /admins/{adminId} {
+      // Lets the app ask "am I an admin?" (missing doc = no).
+      allow get: if request.auth != null && request.auth.uid == adminId;
       allow list: if false;
       allow write: if false;
+    }
+
+    // ============================================================
+    // USERS (moderation state: offenseCount, bannedUntil)
+    // A user can read only their own document so the app can show
+    // warnings/ban status. Only admins can write, only these two fields,
+    // never their own document, and a suspension lasts at most 31 days.
+    // ============================================================
+
+    function isValidSuspension() {
+      return request.resource.data.offenseCount is int
+        && request.resource.data.bannedUntil is timestamp
+        && request.resource.data.bannedUntil <= request.time + duration.value(31, 'd');
+    }
+
+    // Optional details saved with a suspension so admins can see who is
+    // suspended (Admin Dashboard > Suspended) without other user data.
+    function isValidSuspensionInfo() {
+      return request.resource.data.get('displayName', '') is string
+        && request.resource.data.get('displayName', '').size() <= 100
+        && request.resource.data.get('suspendedBy', '') in ['', request.auth.uid]
+        && (
+          !('suspendedAt' in request.resource.data)
+          || request.resource.data.suspendedAt is timestamp
+        );
+    }
+
+    match /users/{userId} {
+      // Own status, or any user for admins (list of suspended users).
+      allow get: if request.auth != null
+        && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin()
+        && userId != request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'offenseCount', 'bannedUntil', 'displayName', 'suspendedBy',
+          'suspendedAt'
+        ])
+        && isValidSuspension()
+        && isValidSuspensionInfo();
+      // Suspend, or lift a suspension (bannedUntil = now).
+      allow update: if isAdmin()
+        && userId != request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              'offenseCount', 'bannedUntil', 'displayName', 'suspendedBy',
+              'suspendedAt'
+            ])
+        && isValidSuspension()
+        && isValidSuspensionInfo();
+      allow delete: if false;
     }
 
 
@@ -90,11 +228,42 @@ service cloud.firestore {
     }
 
     // ============================================================
-    // REPORTS
-    // One report per user per post (id = itemId_reporterUid).
-    // Status changes (pending -> removed/dismissed) are made only by
-    // the moderation Worker.
+    // REPORTS (posts and chat messages)
+    // id = {targetType}_{targetId}_{reporterUid}: one report per user per
+    // post/message, and the reporter can never edit it, so the same user
+    // can't report the same content repeatedly.
+    // contentPreview / reportedUserId are checked against the real post
+    // or message, so admins can trust them without reading whole chats.
+    // Only admins can read every report and change its status.
     // ============================================================
+
+    function isValidItemReport() {
+      let data = request.resource.data;
+      let itemPath = /databases/$(database)/documents/items/$(data.targetId);
+      return data.targetType == 'item'
+        && data.conversationId == ''
+        && exists(itemPath)
+        && get(itemPath).data.ownerId == data.reportedUserId
+        && get(itemPath).data.get('title', '') == data.contentPreview
+        && get(itemPath).data.get('username', 'Unknown') == data.reportedUserName;
+    }
+
+    function isValidMessageReport() {
+      let data = request.resource.data;
+      let convoPath = /databases/$(database)/documents/conversations/$(data.conversationId);
+      let msgPath = /databases/$(database)/documents/conversations/$(data.conversationId)/messages/$(data.targetId);
+      return data.targetType == 'message'
+        && data.conversationId is string
+        && data.conversationId != ''
+        && exists(convoPath)
+        && get(convoPath).data.participantIds is list
+        && request.auth.uid in get(convoPath).data.participantIds
+        && exists(msgPath)
+        && get(msgPath).data.senderId == data.reportedUserId
+        && get(msgPath).data.text == data.contentPreview
+        && get(msgPath).data.get('senderName', 'User') == data.reportedUserName
+        && data.contentPreview != removedMessageText();
+    }
 
     match /reports/{reportId} {
 
@@ -102,32 +271,160 @@ service cloud.firestore {
         && (
           resource == null
           || resource.data.reporterId == request.auth.uid
+          || isAdmin()
         );
 
       allow list: if hasAccess()
-        && resource.data.reporterId == request.auth.uid;
+        && (
+          resource.data.reporterId == request.auth.uid
+          || isAdmin()
+        );
 
       allow create: if hasAccess()
-        && reportId == request.resource.data.itemId + '_' + request.auth.uid
         && request.resource.data.keys().hasOnly([
-          'itemId', 'reporterId', 'reason', 'details', 'status', 'createdAt'
+          'targetType', 'targetId', 'conversationId', 'reporterId',
+          'reportedUserId', 'reportedUserName', 'contentPreview',
+          'reason', 'details', 'status', 'createdAt'
         ])
+        && reportId == request.resource.data.targetType + '_'
+            + request.resource.data.targetId + '_' + request.auth.uid
         && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.reportedUserId != request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.reason in [
-          'spam', 'inappropriate', 'harassment', 'scam', 'other'
+          'fake', 'spam', 'inappropriate', 'harassment', 'scam', 'other'
         ]
         && request.resource.data.details is string
         && request.resource.data.details.size() <= 300
         && request.resource.data.createdAt == request.time
-        && exists(
-          /databases/$(database)/documents/items/$(request.resource.data.itemId)
-        )
-        && get(
-          /databases/$(database)/documents/items/$(request.resource.data.itemId)
-        ).data.ownerId != request.auth.uid;
+        && (isValidItemReport() || isValidMessageReport());
+
+      // Admin review: pending -> dismissed / actioned, or an undo that
+      // puts a reviewed report back to pending.
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'reviewedBy', 'reviewedAt', 'resolution'
+        ])
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewedAt == request.time
+        && (
+          (
+            resource.data.status == 'pending'
+            && request.resource.data.status == 'dismissed'
+            && request.resource.data.resolution == 'dismiss'
+          )
+          ||
+          (
+            resource.data.status == 'pending'
+            && request.resource.data.status == 'actioned'
+            && request.resource.data.resolution in ['remove', 'remove_and_suspend']
+          )
+          ||
+          (
+            resource.data.status in ['dismissed', 'actioned']
+            && request.resource.data.status == 'pending'
+            && request.resource.data.resolution == 'undone'
+          )
+        );
+
+      // Reports are kept as part of the moderation history.
+      allow delete: if false;
+    }
+
+
+    // ============================================================
+    // MODERATION LOG (history of admin decisions)
+    // Admins can read it and append to it; entries are immutable.
+    // ============================================================
+
+    match /moderationLog/{logId} {
+      allow read: if isAdmin();
+
+      // An undo is its own entry with id undo_{original id}. Entries are
+      // create-only, so each decision can be undone at most once.
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly([
+          'adminId', 'adminEmail', 'action', 'targetType', 'targetId',
+          'reportedUserId', 'reportedUserName', 'contentPreview',
+          'reasons', 'reportCount', 'reportIds', 'note', 'createdAt',
+          'undoOf'
+        ])
+        && request.resource.data.adminId == request.auth.uid
+        && request.resource.data.note is string
+        && request.resource.data.note.size() <= 300
+        && request.resource.data.createdAt == request.time
+        && (
+          (
+            request.resource.data.action in ['dismiss', 'remove', 'remove_and_suspend']
+            && request.resource.data.targetType in ['item', 'message']
+            && !('undoOf' in request.resource.data)
+          )
+          ||
+          (
+            // Only report decisions can be undone (not undos or unbans).
+            request.resource.data.action == 'undo'
+            && request.resource.data.targetType in ['item', 'message']
+            && logId == 'undo_' + request.resource.data.undoOf
+            && exists(/databases/$(database)/documents/moderationLog/$(request.resource.data.undoOf))
+            && get(/databases/$(database)/documents/moderationLog/$(request.resource.data.undoOf)).data.action
+                in ['dismiss', 'remove', 'remove_and_suspend']
+          )
+          ||
+          (
+            // An admin lifted a suspension from the Suspended tab.
+            request.resource.data.action == 'unban'
+            && request.resource.data.targetType == 'user'
+            && request.resource.data.targetId == request.resource.data.reportedUserId
+            && !('undoOf' in request.resource.data)
+          )
+        );
 
       allow update, delete: if false;
+    }
+
+
+    // ============================================================
+    // REMOVED CONTENT (admin-only backups that make undo possible)
+    // id = {targetType}_{targetId}. Written in the same batch as the
+    // removal; the rules check the copy equals the live post/message
+    // (get() sees the data from before the batch), so a restore can only
+    // bring back what was actually removed.
+    // ============================================================
+
+    match /removedContent/{contentId} {
+      allow read: if isAdmin();
+
+      allow create, update: if isAdmin()
+        && contentId == request.resource.data.targetType + '_'
+            + request.resource.data.targetId
+        && request.resource.data.removedBy == request.auth.uid
+        && request.resource.data.removedAt == request.time
+        && (
+          (
+            request.resource.data.targetType == 'item'
+            && request.resource.data.keys().hasOnly([
+              'targetType', 'targetId', 'conversationId', 'item',
+              'removedBy', 'removedAt'
+            ])
+            && request.resource.data.item == get(
+              /databases/$(database)/documents/items/$(request.resource.data.targetId)
+            ).data
+          )
+          ||
+          (
+            request.resource.data.targetType == 'message'
+            && request.resource.data.keys().hasOnly([
+              'targetType', 'targetId', 'conversationId', 'text',
+              'removedBy', 'removedAt'
+            ])
+            && request.resource.data.text == get(
+              /databases/$(database)/documents/conversations/$(request.resource.data.conversationId)/messages/$(request.resource.data.targetId)
+            ).data.text
+            && request.resource.data.text != removedMessageText()
+          )
+        );
+
+      allow delete: if isAdmin();
     }
 
 
@@ -141,20 +438,38 @@ service cloud.firestore {
       allow read: if hasAccess();
 
       // A user can create only their own post, and not while banned.
-      allow create: if hasAccess()
-        && !isBanned()
-        && request.resource.data.ownerId == request.auth.uid;
+      // An admin can re-create a removed post (undo), but only exactly as
+      // it was saved in removedContent when it was removed.
+      allow create: if (
+          hasAccess()
+          && !isBanned()
+          && request.resource.data.ownerId == request.auth.uid
+        )
+        || (
+          isAdmin()
+          && exists(/databases/$(database)/documents/removedContent/$('item_' + itemId))
+          && request.resource.data == get(
+            /databases/$(database)/documents/removedContent/$('item_' + itemId)
+          ).data.item
+        );
 
       // Only the owner can update their item, and not while banned.
-      // Ownership cannot be transferred.
+      // Ownership cannot be transferred. Refreshing the author's name and
+      // photo (after a profile edit), and closing/reopening a claim, are
+      // allowed even while banned.
       allow update: if hasAccess()
-        && !isBanned()
         && resource.data.ownerId == request.auth.uid
-        && request.resource.data.ownerId == request.auth.uid;
+        && request.resource.data.ownerId == request.auth.uid
+        && isValidStatusChange()
+        && (!isBanned() || onlyRefreshesItemAuthor() || onlyChangesClaim());
 
-      // Only the owner can delete their item (allowed even while banned).
+      // The owner can delete their item (allowed even while banned).
+      // Admins can delete any item (removing a reported post).
       allow delete: if hasAccess()
-        && resource.data.ownerId == request.auth.uid;
+        && (
+          resource.data.ownerId == request.auth.uid
+          || isAdmin()
+        );
     }
 
 
@@ -239,6 +554,14 @@ service cloud.firestore {
               'additionalDetails'
             ])
           )
+
+          ||
+
+          // 3) A claimant may update their own name after a profile edit.
+          (
+            resource.data.claimantId == request.auth.uid
+            && onlyRenames('claimantName')
+          )
         );
 
       // Only the finder can delete an approved claim.
@@ -250,10 +573,14 @@ service cloud.firestore {
 
     // ============================================================
     // COMPLETED RETURNS + FEEDBACK (optional, post-transaction)
-    // completedReturns/{claimId}: written by the finder while the claim is
-    // Approved (right before it is deleted). Immutable afterwards.
+    // completedReturns/{id}: ownerId is always the finder, claimantId the
+    // person who got the item back. Immutable once written.
+    //  - Found post: id = itemId_claimantId, written by the finder while
+    //    the claim is Approved.
+    //  - Lost post: id = itemId_finderId, written by the post owner right
+    //    after marking the post Claimed with that finder.
     // feedback/{claimId}_{uid}: one per participant, create-only, so
-    // duplicates are impossible. Readable only by its author.
+    // duplicates are impossible. Readable by its author and by admins.
     // ============================================================
 
     match /completedReturns/{returnId} {
@@ -269,13 +596,32 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           'itemId', 'itemTitle', 'ownerId', 'claimantId', 'completedAt'
         ])
-        && request.resource.data.ownerId == request.auth.uid
-        && returnId == request.resource.data.itemId + '_' + request.resource.data.claimantId
         && request.resource.data.completedAt == request.time
-        && exists(/databases/$(database)/documents/claims/$(returnId))
-        && get(/databases/$(database)/documents/claims/$(returnId)).data.status == 'Approved'
-        && get(/databases/$(database)/documents/claims/$(returnId)).data.ownerId == request.auth.uid
-        && get(/databases/$(database)/documents/claims/$(returnId)).data.claimantId == request.resource.data.claimantId;
+        && (
+          // Found post: the finder, backed by the approved claim.
+          (
+            request.resource.data.ownerId == request.auth.uid
+            && returnId == request.resource.data.itemId + '_' + request.resource.data.claimantId
+            && exists(/databases/$(database)/documents/claims/$(returnId))
+            && get(/databases/$(database)/documents/claims/$(returnId)).data.status == 'Approved'
+            && get(/databases/$(database)/documents/claims/$(returnId)).data.ownerId == request.auth.uid
+            && get(/databases/$(database)/documents/claims/$(returnId)).data.claimantId == request.resource.data.claimantId
+          )
+          ||
+          // Lost post: its owner, backed by the post being Claimed by
+          // exactly this finder.
+          (
+            request.resource.data.claimantId == request.auth.uid
+            && request.resource.data.ownerId != request.auth.uid
+            && request.resource.data.ownerId != ''
+            && returnId == request.resource.data.itemId + '_' + request.resource.data.ownerId
+            && exists(/databases/$(database)/documents/items/$(request.resource.data.itemId))
+            && get(/databases/$(database)/documents/items/$(request.resource.data.itemId)).data.ownerId == request.auth.uid
+            && get(/databases/$(database)/documents/items/$(request.resource.data.itemId)).data.status == 'Claimed'
+            && get(/databases/$(database)/documents/items/$(request.resource.data.itemId)).data.claimedFrom == 'Lost'
+            && get(/databases/$(database)/documents/items/$(request.resource.data.itemId)).data.claimedBy == request.resource.data.ownerId
+          )
+        );
 
       allow update, delete: if false;
     }
@@ -283,9 +629,14 @@ service cloud.firestore {
     match /feedback/{feedbackId} {
       // resource == null lets the app check "already submitted?" before
       // writing (a missing doc would otherwise be denied).
+      // Admins can read all feedback (Admin Dashboard > Feedback).
       allow get: if hasAccess()
-        && (resource == null || resource.data.authorId == request.auth.uid);
-      allow list: if false;
+        && (
+          resource == null
+          || resource.data.authorId == request.auth.uid
+          || isAdmin()
+        );
+      allow list: if isAdmin();
 
       allow create: if hasAccess()
         && request.resource.data.keys().hasOnly([
@@ -337,18 +688,24 @@ service cloud.firestore {
         ]);
 
       // Clients may create only the app's normal notification types.
-      // Warning/ban notices (moderation_*) can be created only by the
-      // moderation Worker, so they cannot be faked.
+      // Moderation notices (moderation_*) can be created only by admins,
+      // so regular users cannot fake them.
       allow create: if hasAccess()
-        && request.resource.data.type in [
-          'match',
-          'category_match',
-          'claim_received',
-          'claim_approved',
-          'claim_rejected',
-          'claim_update',
-          'message'
-        ];
+        && (
+          request.resource.data.type in [
+            'match',
+            'category_match',
+            'claim_received',
+            'claim_approved',
+            'claim_rejected',
+            'claim_update',
+            'message'
+          ]
+          || (
+            isAdmin()
+            && request.resource.data.type in ['moderation_removed', 'moderation_restored']
+          )
+        );
 
       allow delete: if hasAccess()
         && resource.data.recipientId == request.auth.uid;
@@ -388,7 +745,8 @@ service cloud.firestore {
         && request.resource.data.participantIds[0]
             != request.resource.data.participantIds[1];
 
-      // Participants can update conversation metadata only.
+      // Participants can update conversation metadata only, or their own
+      // entry in participantNames (after a profile edit).
       allow update: if hasAccess()
         && resource.data.participantIds is list
         && request.auth.uid in resource.data.participantIds
@@ -402,11 +760,23 @@ service cloud.firestore {
             == resource.data.itemImageUrl
         && request.resource.data.itemType
             == resource.data.itemType
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'lastMessage',
-          'lastMessageTime',
-          'unreadCounts'
-        ]);
+        && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'lastMessage',
+            'lastMessageTime',
+            'unreadCounts'
+          ])
+          || (
+            request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['participantNames'])
+            && request.resource.data.participantNames is map
+            && request.resource.data.participantNames
+                .diff(resource.data.get('participantNames', {}))
+                .affectedKeys().hasOnly([request.auth.uid])
+            && isValidDisplayName(
+                request.resource.data.participantNames[request.auth.uid])
+          )
+        );
 
       // Participants can delete their conversation.
       allow delete: if hasAccess()
@@ -454,17 +824,51 @@ service cloud.firestore {
           && request.resource.data.text.size() <= 2000
           && request.resource.data.isRead == false;
 
-        allow update: if hasAccess()
-          && request.auth.uid in get(
-            /databases/$(database)/documents/conversations/$(conversationId)
-          ).data.participantIds
-          && resource.data.senderId != request.auth.uid
-          && request.resource.data.senderId == resource.data.senderId
-          && request.resource.data.senderName == resource.data.senderName
-          && request.resource.data.text == resource.data.text
-          && request.resource.data.timestamp == resource.data.timestamp
-          && resource.data.isRead == false
-          && request.resource.data.isRead == true;
+        // 1) The recipient marks a message as read.
+        // 2) The sender updates their own name after a profile edit.
+        // 3) An admin replaces the text of a reported message. Admins
+        //    cannot READ messages; they only see the reported text that
+        //    was copied (and verified) into the report.
+        allow update: if (
+            hasAccess()
+            && request.auth.uid in get(
+              /databases/$(database)/documents/conversations/$(conversationId)
+            ).data.participantIds
+            && resource.data.senderId != request.auth.uid
+            && request.resource.data.senderId == resource.data.senderId
+            && request.resource.data.senderName == resource.data.senderName
+            && request.resource.data.text == resource.data.text
+            && request.resource.data.timestamp == resource.data.timestamp
+            && resource.data.isRead == false
+            && request.resource.data.isRead == true
+          )
+          || (
+            hasAccess()
+            && request.auth.uid in get(
+              /databases/$(database)/documents/conversations/$(conversationId)
+            ).data.participantIds
+            && resource.data.senderId == request.auth.uid
+            && onlyRenames('senderName')
+          )
+          || (
+            isAdmin()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['text', 'removedByAdmin'])
+            && request.resource.data.text == removedMessageText()
+            && request.resource.data.removedByAdmin == true
+          )
+          || (
+            // 4) Undo: an admin puts back the original text saved in
+            //    removedContent when the message was removed.
+            isAdmin()
+            && resource.data.get('removedByAdmin', false) == true
+            && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['text', 'removedByAdmin'])
+            && request.resource.data.removedByAdmin == false
+            && request.resource.data.text == get(
+              /databases/$(database)/documents/removedContent/$('message_' + messageId)
+            ).data.text
+          );
 
         allow delete: if hasAccess()
           && request.auth.uid in get(
@@ -475,7 +879,7 @@ service cloud.firestore {
 
 
     // ============================================================
-    // EVERYTHING ELSE (includes the server-only moderationLog)
+    // EVERYTHING ELSE
     // ============================================================
 
     match /{document=**} {

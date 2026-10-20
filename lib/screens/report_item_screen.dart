@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../models/item_category.dart';
 import '../providers/item_provider.dart';
+import '../services/suspension_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/full_screen_image_viewer.dart';
+import '../widgets/suspension_notice.dart';
 import 'draft_matches_screen.dart';
 
 class ReportItemScreen extends StatefulWidget {
@@ -25,8 +28,9 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
   final TextEditingController verificationQuestionController =
   TextEditingController();
 
+  final TextEditingController locationController = TextEditingController();
+
   String? selectedCategory;
-  String? selectedLocation;
   late DateTime selectedDate;
 
   static const int _maxPhotos = 5;
@@ -45,23 +49,8 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
   final GlobalKey _descriptionKey = GlobalKey();
   final GlobalKey _verificationKey = GlobalKey();
 
-  static const List<_Choice> _categories = [
-    _Choice('Electronics', Icons.phone_android_rounded, Color(0xFF2F5BEA)),
-    _Choice('Wallet', Icons.account_balance_wallet_rounded, Color(0xFFE08A00)),
-    _Choice('ID', Icons.badge_rounded, Color(0xFF1F9D68)),
-    _Choice('Keys', Icons.key_rounded, Color(0xFFE5484D)),
-    _Choice('Books', Icons.menu_book_rounded, Color(0xFF7C3AED)),
-    _Choice('Others', Icons.category_rounded, Color(0xFF0891B2)),
-  ];
-
-  static const List<_Choice> _locations = [
-    _Choice('Library', Icons.local_library_rounded, AppColors.muted),
-    _Choice('Classroom', Icons.school_rounded, AppColors.muted),
-    _Choice('Laboratory', Icons.science_rounded, AppColors.muted),
-    _Choice('Cafeteria', Icons.restaurant_rounded, AppColors.muted),
-    _Choice('Gymnasium', Icons.fitness_center_rounded, AppColors.muted),
-    _Choice('Main Building', Icons.apartment_rounded, AppColors.muted),
-    _Choice('Other', Icons.more_horiz_rounded, AppColors.muted),
+  static final List<_Choice> _categories = [
+    for (final c in ItemCategory.all) _Choice(c.name, c.icon, c.color),
   ];
 
   static const List<String> _questionIdeas = [
@@ -73,17 +62,30 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
 
   bool get _isFound => selectedType == 'Found';
 
+  /// Set when the user turns out to be suspended from posting; the form is
+  /// then replaced by an explanation.
+  DateTime? _suspendedUntil;
+
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
     selectedDate = DateTime(now.year, now.month, now.day);
+    _checkSuspension();
+  }
+
+  /// Home already checks before opening this screen; this covers any other
+  /// way in.
+  Future<void> _checkSuspension() async {
+    final until = await SuspensionService().activeSuspensionEnd();
+    if (mounted && until != null) setState(() => _suspendedUntil = until);
   }
 
   @override
   void dispose() {
     itemNameController.dispose();
     descriptionController.dispose();
+    locationController.dispose();
     verificationQuestionController.dispose();
     super.dispose();
   }
@@ -94,6 +96,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
 
   bool get _hasPhoto => selectedImages.isNotEmpty;
   bool get _hasName => itemNameController.text.trim().isNotEmpty;
+  bool get _hasLocation => locationController.text.trim().isNotEmpty;
   bool get _hasDescription => descriptionController.text.trim().isNotEmpty;
   bool get _hasQuestion =>
       verificationQuestionController.text.trim().isNotEmpty;
@@ -106,7 +109,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
     if (_isFound) _hasPhoto,
     _hasName,
     selectedCategory != null,
-    selectedLocation != null,
+    _hasLocation,
     _hasDescription,
     if (_isFound) _hasQuestion,
   ].where((done) => done).length;
@@ -114,7 +117,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
   bool get _isDirty =>
       _hasPhoto ||
           selectedCategory != null ||
-          selectedLocation != null ||
+          _hasLocation ||
           _hasName ||
           _hasDescription ||
           _hasQuestion;
@@ -131,7 +134,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
       _showErrors && selectedCategory == null ? 'Choose a category.' : null;
 
   String? get _locationError =>
-      _showErrors && selectedLocation == null ? 'Choose a location.' : null;
+      _showErrors && !_hasLocation ? 'Enter where it happened.' : null;
 
   String? get _descriptionError =>
       _showErrors && !_hasDescription ? 'Add a short description.' : null;
@@ -259,7 +262,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       showDragHandle: true,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -307,6 +310,15 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
 
     setState(() => isSubmitting = true);
 
+    // An admin may have suspended the user while the form was open.
+    final suspendedUntil = await SuspensionService().activeSuspensionEnd();
+    if (!mounted) return;
+    if (suspendedUntil != null) {
+      setState(() => isSubmitting = false);
+      await showSuspendedDialog(context, suspendedUntil);
+      return;
+    }
+
     try {
       // 1) Check for possible matches BEFORE anything is posted.
       final matches = await context.read<ItemProvider>().findMatchesForDraft(
@@ -339,7 +351,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
         title: itemNameController.text.trim(),
         description: descriptionController.text.trim(),
         category: selectedCategory!,
-        location: selectedLocation!,
+        location: locationController.text.trim(),
         date: formattedDate,
         status: selectedType,
         imageFiles: List<File>.of(selectedImages),
@@ -397,6 +409,9 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final suspendedUntil = _suspendedUntil;
+    if (suspendedUntil != null) return SuspendedView(until: suspendedUntil);
+
     return PopScope(
       canPop: !_isDirty || _posted,
       onPopInvokedWithResult: (didPop, _) async {
@@ -528,16 +543,25 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                       label: _isFound
                           ? 'Where did you find it?'
                           : 'Where did you lose it?',
-                      done: selectedLocation != null,
+                      done: _hasLocation,
                       error: _locationError,
-                      child: _buildDropdown(
-                        value: selectedLocation,
-                        hint: 'Select a location',
-                        hintIcon: Icons.location_on_outlined,
-                        choices: _locations,
-                        hasError: _locationError != null,
-                        onChanged: (value) =>
-                            setState(() => selectedLocation = value),
+                      child: TextField(
+                        controller: locationController,
+                        maxLength: 100,
+                        style: _inputStyle,
+                        scrollPadding: const EdgeInsets.only(bottom: 160),
+                        textCapitalization: TextCapitalization.sentences,
+                        textInputAction: TextInputAction.next,
+                        onChanged: (_) => setState(() {}),
+                        decoration: _decoration(
+                          hint: 'e.g. 2nd floor library, near the printers',
+                          hasError: _locationError != null,
+                        ).copyWith(
+                          prefixIcon: Icon(
+                            Icons.location_on_outlined,
+                            color: AppColors.muted,
+                          ),
+                        ),
                       ),
                     ),
 
@@ -583,7 +607,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                           const SizedBox(height: 6),
                           Text(
                             '${descriptionController.text.length}/500',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               color: AppColors.muted,
                             ),
@@ -621,7 +645,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                               ),
                             ),
                             const SizedBox(height: 12),
-                            const Text(
+                            Text(
                               'Need an idea? Tap one:',
                               style: TextStyle(
                                 fontSize: 15,
@@ -661,8 +685,8 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
 
         // POST BUTTON
         bottomNavigationBar: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
             border: Border(top: BorderSide(color: AppColors.line)),
           ),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -716,7 +740,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
 
     return Container(
       width: double.infinity,
-      color: Colors.white,
+      color: AppColors.surface,
       padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -726,7 +750,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
               Expanded(
                 child: Text(
                   '$_completed of $_totalRequired completed',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
                     color: AppColors.ink,
@@ -785,7 +809,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
               _isFound
                   ? 'All fields are required.'
                   : 'Photos are optional. All other fields are required.',
-              style: const TextStyle(fontSize: 15, color: AppColors.muted),
+              style: TextStyle(fontSize: 15, color: AppColors.muted),
             ),
         ],
       ),
@@ -837,8 +861,8 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
       itemHeight: 56,
       menuMaxHeight: 380,
       borderRadius: BorderRadius.circular(16),
-      dropdownColor: Colors.white,
-      icon: const Icon(
+      dropdownColor: AppColors.surface,
+      icon: Icon(
         Icons.keyboard_arrow_down_rounded,
         size: 32,
         color: AppColors.muted,
@@ -855,7 +879,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
             child: Text(
               hint,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 18, color: AppColors.muted),
+              style: TextStyle(fontSize: 18, color: AppColors.muted),
             ),
           ),
         ],
@@ -888,13 +912,13 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
         height: 60,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.line),
         ),
         child: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.calendar_today_outlined,
               size: 24,
               color: AppColors.muted,
@@ -907,7 +931,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Icon(
+            Icon(
               Icons.keyboard_arrow_down_rounded,
               size: 32,
               color: AppColors.muted,
@@ -949,7 +973,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
             const SizedBox(height: 12),
             Text(
               _isFound ? 'Add photos' : 'Add photos (optional)',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
                 color: AppColors.ink,
@@ -1111,7 +1135,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
         const SizedBox(height: 8),
         Text(
           '${selectedImages.length}/$_maxPhotos photos',
-          style: const TextStyle(fontSize: 14, color: AppColors.muted),
+          style: TextStyle(fontSize: 14, color: AppColors.muted),
         ),
       ],
     );
@@ -1122,7 +1146,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
 // SHARED BITS
 // =========================================================================
 
-const TextStyle _inputStyle = TextStyle(
+TextStyle get _inputStyle => TextStyle(
   fontSize: 18,
   color: AppColors.ink,
   fontWeight: FontWeight.w500,
@@ -1140,9 +1164,9 @@ InputDecoration _decoration({String? hint, bool hasError = false}) {
 
   return InputDecoration(
     hintText: hint,
-    hintStyle: const TextStyle(fontSize: 18, color: AppColors.muted),
+    hintStyle: TextStyle(fontSize: 18, color: AppColors.muted),
     filled: true,
-    fillColor: Colors.white,
+    fillColor: AppColors.surface,
     counterText: '',
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
     border: border(base, hasError ? 1.5 : 1),
@@ -1184,7 +1208,7 @@ class _FormSection extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-      color: Colors.white,
+      color: AppColors.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1198,7 +1222,7 @@ class _FormSection extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 3),
                   child: Text(
                     label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                       height: 1.25,
@@ -1214,7 +1238,7 @@ class _FormSection extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 helper!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   height: 1.4,
                   color: AppColors.muted,
@@ -1311,7 +1335,7 @@ class _TypeOption extends StatelessWidget {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: selected ? color.withValues(alpha: 0.08) : Colors.white,
+          color: selected ? color.withValues(alpha: 0.08) : AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: selected ? color : AppColors.line,
@@ -1337,7 +1361,7 @@ class _TypeOption extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
                       color: AppColors.ink,
@@ -1346,7 +1370,7 @@ class _TypeOption extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       height: 1.3,
                       color: AppColors.muted,

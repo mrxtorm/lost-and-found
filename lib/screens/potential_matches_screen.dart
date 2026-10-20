@@ -273,7 +273,7 @@ class _PotentialMatchesScreenState extends State<PotentialMatchesScreen> {
   Widget _placeholder() {
     return Container(
       color: AppColors.line,
-      child: const Center(
+      child: Center(
         child: Icon(Icons.image, size: 64, color: AppColors.muted),
       ),
     );

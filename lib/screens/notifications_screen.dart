@@ -42,6 +42,10 @@ class NotificationsScreen extends StatelessWidget {
         return Icons.chat_bubble;
       case NotificationType.reportPosted:
         return Icons.cloud_done;
+      case NotificationType.moderationRemoved:
+        return Icons.gavel_rounded;
+      case NotificationType.moderationRestored:
+        return Icons.restore_rounded;
       default:
         return Icons.notifications;
     }
@@ -64,6 +68,10 @@ class NotificationsScreen extends StatelessWidget {
         return AppColors.primary;
       case NotificationType.reportPosted:
         return Colors.teal;
+      case NotificationType.moderationRemoved:
+        return AppColors.lost;
+      case NotificationType.moderationRestored:
+        return AppColors.found;
       default:
         return AppColors.muted;
     }
@@ -91,13 +99,13 @@ class NotificationsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        surfaceTintColor: Colors.white,
-        title: const Text(
+        surfaceTintColor: AppColors.surface,
+        title: Text(
           'Notifications',
           style: TextStyle(
-            color: Colors.black87,
+            color: AppColors.ink,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -105,13 +113,32 @@ class NotificationsScreen extends StatelessWidget {
           TextButton.icon(
             // Disabled (not hidden) when everything is already read.
             onPressed: notificationProvider.unreadCount > 0
-                ? () => notificationProvider.markAllAsRead()
+                ? () async {
+                    final count = notificationProvider.unreadCount;
+                    final ok = await confirmAction(
+                      context,
+                      title: 'Mark all as read?',
+                      message:
+                          '$count unread notification${count == 1 ? '' : 's'} '
+                          'will be marked as read.',
+                      confirmLabel: 'Mark all read',
+                      icon: Icons.done_all,
+                    );
+                    if (ok) notificationProvider.markAllAsRead();
+                  }
                 : null,
             icon: const Icon(Icons.done_all, size: 20),
             label: const Text(
               'Mark All as Read',
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
+          ),
+          IconButton(
+            tooltip: 'Clear all',
+            onPressed: notifications.isNotEmpty
+                ? () => _confirmClearAll(context, notificationProvider)
+                : null,
+            icon: const Icon(Icons.delete_sweep_outlined),
           ),
         ],
       ),
@@ -137,15 +164,89 @@ class NotificationsScreen extends StatelessWidget {
                     padding: const EdgeInsets.all(16),
                     itemCount: notifications.length,
                     itemBuilder: (context, index) {
-                      return _buildNotificationCard(
-                        context,
-                        notificationProvider,
-                        notifications[index],
+                      final notification = notifications[index];
+                      return Dismissible(
+                        key: ValueKey(notification.id),
+                        direction: DismissDirection.endToStart,
+                        background: _buildDeleteBackground(),
+                        // Swiping only asks; nothing is deleted until the
+                        // user confirms (the card slides back on Cancel).
+                        confirmDismiss: (_) => confirmAction(
+                          context,
+                          title: 'Delete notification?',
+                          message: '"${notification.title}" will be removed '
+                              'from your notifications.',
+                          confirmLabel: 'Delete',
+                          destructive: true,
+                          icon: Icons.delete_outline,
+                        ),
+                        onDismissed: (_) {
+                          notificationProvider
+                              .deleteNotification(notification.id);
+                          AppSnack.show(context, 'Notification deleted');
+                        },
+                        child: _buildNotificationCard(
+                          context,
+                          notificationProvider,
+                          notification,
+                        ),
                       );
                     },
                   ),
       ),
     );
+  }
+
+  Widget _buildDeleteBackground() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      alignment: Alignment.centerRight,
+      decoration: BoxDecoration(
+        color: AppColors.lost,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.delete_outline, color: Colors.white),
+          SizedBox(width: 6),
+          Text(
+            'Delete',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmClearAll(
+    BuildContext context,
+    NotificationProvider notificationProvider,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Clear all notifications?'),
+        content: const Text('This permanently deletes all your notifications.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.lost),
+            child: const Text('Clear all'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    await notificationProvider.deleteAllNotifications();
+    if (!context.mounted) return;
+    AppSnack.show(context, 'All notifications cleared', kind: SnackKind.success);
   }
 
   Widget _buildNotificationCard(
@@ -171,7 +272,7 @@ class NotificationsScreen extends StatelessWidget {
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: notification.isRead ? Colors.white : AppColors.primarySoft,
+              color: notification.isRead ? AppColors.surface : AppColors.primarySoft,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: notification.isRead
@@ -203,8 +304,8 @@ class NotificationsScreen extends StatelessWidget {
                                       ? FontWeight.w500
                                       : FontWeight.w800,
                                   color: notification.isRead
-                                      ? Colors.black54
-                                      : Colors.black87,
+                                      ? AppColors.muted
+                                      : AppColors.ink,
                                 ),
                               ),
                             ),
@@ -499,6 +600,7 @@ class NotificationsScreen extends StatelessWidget {
       status: row.status,
       imageUrl: row.imageUrl,
       username: row.username,
+      ownerPhotoUrl: row.ownerPhotoUrl,
       ownerId: row.ownerId,
       verificationQuestion: row.verificationQuestion,
       createdAt: row.createdAt,

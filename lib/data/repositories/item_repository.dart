@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:drift/drift.dart' show Value;
@@ -31,6 +32,8 @@ class ItemRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   StreamSubscription<List<ItemModel>>? _remoteSub;
+  Timer? _retryTimer;
+  int _retryAttempt = 0;
 
   ItemRepository({
     required AppDatabase database,
@@ -42,24 +45,59 @@ class ItemRepository {
         _notificationService = NotificationService();
 
   /// Starts a live Firestore listener that keeps the local cache up to
-  /// date whenever the app has a connection. Items are public (not scoped
-  /// to a signed-in user), so this can run for the app's whole lifetime.
+  /// date whenever the app has a connection. Reading items needs a signed-in,
+  /// verified user who accepted the Terms, so start this once that's true.
   /// Safe to call more than once - only the first call subscribes.
   void startRemoteSync() {
-    _remoteSub ??= _itemService.streamItems().listen(
-          (serverItems) {
+    if (_remoteSub != null) return;
+    _retryTimer?.cancel();
+    _remoteSub = _itemService.streamItems().listen(
+      (serverItems) {
+        _retryAttempt = 0;
         _db.syncItemsFromServer(serverItems.map(_toCompanion).toList());
       },
       onError: (_) {
-        // No connection, or a transient Firestore error. The local cache
-        // keeps serving the UI; the stream retries on its own once
-        // connectivity returns.
+        // Firestore ends a listener after an error (e.g. permission denied
+        // while access is still being granted), so it never recovers on
+        // its own. Start a new one after a short, growing delay. The local
+        // cache keeps serving the UI meanwhile.
+        _remoteSub?.cancel();
+        _remoteSub = null;
+        final seconds = math.min(60, 2 << _retryAttempt);
+        _retryAttempt = math.min(_retryAttempt + 1, 5);
+        _retryTimer = Timer(Duration(seconds: seconds), startRemoteSync);
       },
     );
   }
 
-  void dispose() {
+  /// Starts the listener again from scratch, e.g. after a different user
+  /// signs in.
+  void restartRemoteSync() {
+    stopRemoteSync();
+    _retryAttempt = 0;
+    startRemoteSync();
+  }
+
+  void stopRemoteSync() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
     _remoteSub?.cancel();
+    _remoteSub = null;
+  }
+
+  void dispose() {
+    stopRemoteSync();
+  }
+
+  /// Re-reads one item from Firestore into the local cache right away, so a
+  /// change made on the server (claim, undo, delete) shows up without
+  /// waiting for the listener.
+  Future<void> refreshItem(String itemId) async {
+    final item = await _itemService.fetchItem(itemId);
+    await _db.syncItemFromServer(
+      itemId,
+      item == null ? null : _toCompanion(item),
+    );
   }
 
   /// One-off refresh for pull-to-refresh. The live listener from
@@ -167,6 +205,7 @@ class ItemRepository {
           Value(imageFiles.isEmpty ? null : imageFiles.first.path),
       localImagePaths: Value(_encodeList(imageFiles.map((f) => f.path))),
       username: Value(username),
+      ownerPhotoUrl: Value(user.photoURL ?? ''),
       ownerId: Value(user.uid),
       verificationQuestion: Value(verificationQuestion),
       createdAt: Value(now),
@@ -248,10 +287,17 @@ class ItemRepository {
       status: fields.containsKey('status')
           ? Value(fields['status'] as String)
           : const Value.absent(),
+      verificationQuestion: fields.containsKey('verificationQuestion')
+          ? Value(fields['verificationQuestion'] as String?)
+          : const Value.absent(),
       pendingUpdate: const Value(true),
       synced: const Value(false),
       updatedAt: Value(DateTime.now()),
     ));
+
+    // A post still waiting to be created has no server doc to update yet;
+    // _pushCreate sends the latest local fields once it goes through.
+    if (row.pendingCreate) return;
 
     unawaited(_pushUpdate(itemId, fields));
   }
@@ -313,6 +359,7 @@ class ItemRepository {
         'imageUrl': imageUrl,
         'imageUrls': urls,
         'username': row.username,
+        'ownerPhotoUrl': row.ownerPhotoUrl,
         'ownerId': row.ownerId,
         'verificationQuestion': row.verificationQuestion,
         'createdAt': row.createdAt != null
@@ -387,6 +434,7 @@ class ItemRepository {
       'location': row.location,
       'date': row.date,
       'status': row.status,
+      'verificationQuestion': row.verificationQuestion,
     });
   }
 
@@ -431,9 +479,14 @@ class ItemRepository {
       imageUrl: Value(item.imageUrl),
       imageUrls: Value(_encodeList(item.imageUrls)),
       username: Value(item.username),
+      ownerPhotoUrl: Value(item.ownerPhotoUrl),
       ownerId: Value(item.ownerId),
       verificationQuestion: Value(item.verificationQuestion),
       createdAt: Value(item.createdAt),
+      claimedAt: Value(item.claimedAt),
+      claimedBy: Value(item.claimedBy),
+      claimedByName: Value(item.claimedByName),
+      claimedFrom: Value(item.claimedFrom),
       updatedAt: Value(DateTime.now()),
     );
   }
@@ -448,7 +501,11 @@ class ItemRepository {
     return models;
   }
 
-  ItemModel _toModel(ItemRow row) {
+  ItemModel _toModel(ItemRow row) => modelFromRow(row);
+
+  /// Builds an [ItemModel] from a cached row, for screens that read the
+  /// local database directly.
+  static ItemModel modelFromRow(ItemRow row) {
     return ItemModel(
       id: row.id,
       title: row.title,
@@ -460,12 +517,17 @@ class ItemRepository {
       imageUrl: row.imageUrl,
       imageUrls: _decodeList(row.imageUrls),
       username: row.username,
+      ownerPhotoUrl: row.ownerPhotoUrl,
       ownerId: row.ownerId,
       verificationQuestion: row.verificationQuestion,
       createdAt: row.createdAt,
       localImagePath: row.localImagePath,
       localImagePaths: _decodeList(row.localImagePaths),
       isSyncPending: row.pendingCreate || row.pendingUpdate,
+      claimedAt: row.claimedAt,
+      claimedBy: row.claimedBy,
+      claimedByName: row.claimedByName,
+      claimedFrom: row.claimedFrom,
     );
   }
 }

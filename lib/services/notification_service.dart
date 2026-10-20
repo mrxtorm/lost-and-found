@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/item_category.dart';
 import '../models/notification_model.dart';
 import '../models/item_model.dart';
 import 'item_matching_service.dart';
@@ -91,9 +92,11 @@ class NotificationService {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return;
 
-    // Same category only (cheap server-side filter)...
+    // Same category only (cheap server-side filter), including posts saved
+    // under the category's old name...
     final snapshot = await _items
-        .where('category', isEqualTo: foundItem.category)
+        .where('category',
+            whereIn: ItemCategory.storedNames(foundItem.category))
         .get();
 
     final foundCreatedAt =
@@ -169,5 +172,24 @@ class NotificationService {
       batch.update(doc.reference, {'isRead': true});
     }
     await batch.commit();
+  }
+
+  Future<void> deleteNotification(String notificationId) {
+    return _notifications.doc(notificationId).delete();
+  }
+
+  Future<void> deleteAllNotifications() async {
+    final snapshot =
+        await _notifications.where('recipientId', isEqualTo: _uid).get();
+
+    // Firestore batches are capped at 500 writes.
+    final docs = snapshot.docs;
+    for (var i = 0; i < docs.length; i += 500) {
+      final batch = _firestore.batch();
+      for (final doc in docs.skip(i).take(500)) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
   }
 }

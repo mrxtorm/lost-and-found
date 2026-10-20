@@ -1,11 +1,11 @@
 {
-    "name": "lost_and_found_app",
-    "short_name": "lost_and_found_app",
+    "name": "FoundIt",
+    "short_name": "FoundIt",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "FoundIt - campus lost and found app.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

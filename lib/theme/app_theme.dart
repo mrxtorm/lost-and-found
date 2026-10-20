@@ -1,26 +1,107 @@
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
+/// Neutral colours that change between light and dark mode.
+class AppPalette {
+  final Color bg;
+  final Color surface;
+  final Color ink;
+  final Color inkSoft;
+  final Color muted;
+  final Color line;
+  final Color track;
+  final Color primarySoft;
+  final Color foundSoft;
+  final Color lostSoft;
+  final Color warnSoft;
+  final Color warnLine;
+  final Color snack;
+
+  const AppPalette({
+    required this.bg,
+    required this.surface,
+    required this.ink,
+    required this.inkSoft,
+    required this.muted,
+    required this.line,
+    required this.track,
+    required this.primarySoft,
+    required this.foundSoft,
+    required this.lostSoft,
+    required this.warnSoft,
+    required this.warnLine,
+    required this.snack,
+  });
+
+  static const light = AppPalette(
+    bg: Color(0xFFF4F5F7),
+    surface: Colors.white,
+    ink: Color(0xFF14171F),
+    inkSoft: Color(0xFF3B4250),
+    // Darkened slightly from 6A7282 so small text meets 4.5:1 on white.
+    muted: Color(0xFF5B6372),
+    line: Color(0xFFE6E8EC),
+    track: Color(0xFFE8EAEE),
+    primarySoft: Color(0xFFEAF0FE),
+    foundSoft: Color(0xFFE6F6EE),
+    lostSoft: Color(0xFFFDECEC),
+    warnSoft: Color(0xFFFEF3E2),
+    warnLine: Color(0xFFF6D9A8),
+    snack: Color(0xFF14171F),
+  );
+
+  static const dark = AppPalette(
+    bg: Color(0xFF0F1115),
+    surface: Color(0xFF1A1D24),
+    ink: Color(0xFFE9EBEF),
+    inkSoft: Color(0xFFC9CED6),
+    // Meets 4.5:1 on both bg and surface.
+    muted: Color(0xFF9CA3AF),
+    line: Color(0xFF2D323C),
+    track: Color(0xFF2A2F38),
+    primarySoft: Color(0xFF1C2847),
+    foundSoft: Color(0xFF13301F),
+    lostSoft: Color(0xFF3A1A1C),
+    warnSoft: Color(0xFF33260F),
+    warnLine: Color(0xFF6B4D1C),
+    snack: Color(0xFF2D323C),
+  );
+}
+
+/// App colours. Brand/status colours are constant; the neutral ones are
+/// read from the active [AppPalette], so they follow light/dark mode.
+///
+/// The active palette is switched by [ThemeController], which also forces
+/// the whole widget tree to rebuild so every screen picks up the change.
 class AppColors {
   AppColors._();
 
-  static const bg = Color(0xFFF4F5F7);
-  static const surface = Colors.white;
-  static const ink = Color(0xFF14171F);
-  // Darkened slightly from 6A7282 so small text meets 4.5:1 on white.
-  static const muted = Color(0xFF5B6372);
-  static const line = Color(0xFFE6E8EC);
-  static const track = Color(0xFFE8EAEE);
+  static AppPalette _palette = AppPalette.light;
+  static AppPalette get palette => _palette;
+  static bool get isDark => identical(_palette, AppPalette.dark);
+
+  static void usePalette(AppPalette palette) => _palette = palette;
+
+  static Color get bg => _palette.bg;
+  static Color get surface => _palette.surface;
+  static Color get ink => _palette.ink;
+  static Color get inkSoft => _palette.inkSoft;
+  static Color get muted => _palette.muted;
+  static Color get line => _palette.line;
+  static Color get track => _palette.track;
+  static Color get snack => _palette.snack;
+
   static const primary = Color(0xFF2F5BEA);
   static const lost = Color(0xFFE5484D);
   static const found = Color(0xFF1F9D68);
   static const warn = Color(0xFFD97706);
 
   // Soft tints for banners / highlighted rows.
-  static const primarySoft = Color(0xFFEAF0FE);
-  static const foundSoft = Color(0xFFE6F6EE);
-  static const warnSoft = Color(0xFFFEF3E2);
-  static const warnLine = Color(0xFFF6D9A8);
+  static Color get primarySoft => _palette.primarySoft;
+  static Color get foundSoft => _palette.foundSoft;
+  static Color get lostSoft => _palette.lostSoft;
+  static Color get warnSoft => _palette.warnSoft;
+  static Color get warnLine => _palette.warnLine;
 
   // Semantic feedback colours.
   static const success = found;
@@ -49,11 +130,18 @@ class AppTheme {
 
   static const _minTap = Size(48, 52);
 
-  static ThemeData get light {
-    final scheme = ColorScheme.fromSeed(seedColor: AppColors.primary).copyWith(
+  static ThemeData get light => build(AppPalette.light, Brightness.light);
+  static ThemeData get dark => build(AppPalette.dark, Brightness.dark);
+
+  static ThemeData build(AppPalette p, Brightness brightness) {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: AppColors.primary,
+      brightness: brightness,
+    ).copyWith(
       primary: AppColors.primary,
-      surface: AppColors.surface,
-      onSurface: AppColors.ink,
+      onPrimary: Colors.white,
+      surface: p.surface,
+      onSurface: p.ink,
       error: AppColors.error,
     );
 
@@ -69,10 +157,14 @@ class AppTheme {
       );
     }
 
-    final base = ThemeData(useMaterial3: true, colorScheme: scheme);
+    final base = ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      colorScheme: scheme,
+    );
 
     return base.copyWith(
-      scaffoldBackgroundColor: AppColors.bg,
+      scaffoldBackgroundColor: p.bg,
       visualDensity: VisualDensity.standard,
       materialTapTargetSize: MaterialTapTargetSize.padded,
       pageTransitionsTheme: const PageTransitionsTheme(
@@ -82,47 +174,47 @@ class AppTheme {
         },
       ),
       textTheme: base.textTheme
-          .apply(bodyColor: AppColors.ink, displayColor: AppColors.ink)
+          .apply(bodyColor: p.ink, displayColor: p.ink)
           .copyWith(
-            titleLarge: const TextStyle(
+            titleLarge: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.3,
-              color: AppColors.ink,
+              color: p.ink,
             ),
-            titleMedium: const TextStyle(
+            titleMedium: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AppColors.ink,
+              color: p.ink,
             ),
-            bodyMedium: const TextStyle(
+            bodyMedium: TextStyle(
               fontSize: 14.5,
               height: 1.4,
-              color: AppColors.ink,
+              color: p.ink,
             ),
-            bodySmall: const TextStyle(
+            bodySmall: TextStyle(
               fontSize: 12.5,
               height: 1.35,
-              color: AppColors.muted,
+              color: p.muted,
             ),
             labelLarge: buttonText,
           ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.bg,
+      appBarTheme: AppBarTheme(
+        backgroundColor: p.bg,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        iconTheme: IconThemeData(color: AppColors.ink),
+        iconTheme: IconThemeData(color: p.ink),
         titleTextStyle: TextStyle(
-          color: AppColors.ink,
+          color: p.ink,
           fontSize: 24,
           fontWeight: FontWeight.w800,
           letterSpacing: -0.4,
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: p.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         height: 68,
@@ -132,13 +224,13 @@ class AppTheme {
           return TextStyle(
             fontSize: 12,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            color: selected ? AppColors.primary : AppColors.muted,
+            color: selected ? AppColors.primary : p.muted,
           );
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return IconThemeData(
-            color: selected ? AppColors.primary : AppColors.muted,
+            color: selected ? AppColors.primary : p.muted,
           );
         }),
       ),
@@ -161,8 +253,8 @@ class AppTheme {
           minimumSize: _minTap,
           shape: buttonShape,
           textStyle: buttonText,
-          side: const BorderSide(color: AppColors.line, width: 1.5),
-          foregroundColor: AppColors.ink,
+          side: BorderSide(color: p.line, width: 1.5),
+          foregroundColor: p.ink,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -189,11 +281,11 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
+        fillColor: p.surface,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        hintStyle: const TextStyle(color: AppColors.muted),
-        labelStyle: const TextStyle(color: AppColors.muted),
+        hintStyle: TextStyle(color: p.muted),
+        labelStyle: TextStyle(color: p.muted),
         floatingLabelStyle: const TextStyle(
           color: AppColors.primary,
           fontWeight: FontWeight.w600,
@@ -202,27 +294,27 @@ class AppTheme {
           color: AppColors.error,
           fontWeight: FontWeight.w600,
         ),
-        border: border(AppColors.line),
-        enabledBorder: border(AppColors.line),
+        border: border(p.line),
+        enabledBorder: border(p.line),
         focusedBorder: border(AppColors.primary, 2),
         errorBorder: border(AppColors.error),
         focusedErrorBorder: border(AppColors.error, 2),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: p.surface,
         selectedColor: AppColors.primary.withValues(alpha: 0.12),
-        side: const BorderSide(color: AppColors.line),
-        labelStyle: const TextStyle(
+        side: BorderSide(color: p.line),
+        labelStyle: TextStyle(
           fontSize: 13.5,
           fontWeight: FontWeight.w600,
-          color: AppColors.ink,
+          color: p.ink,
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
       ),
       cardTheme: CardThemeData(
-        color: Colors.white,
+        color: p.surface,
         elevation: 0,
         margin: EdgeInsets.zero,
         surfaceTintColor: Colors.transparent,
@@ -231,24 +323,24 @@ class AppTheme {
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: p.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
-        titleTextStyle: const TextStyle(
+        titleTextStyle: TextStyle(
           fontSize: 19,
           fontWeight: FontWeight.w800,
-          color: AppColors.ink,
+          color: p.ink,
         ),
-        contentTextStyle: const TextStyle(
+        contentTextStyle: TextStyle(
           fontSize: 14.5,
           height: 1.45,
-          color: AppColors.ink,
+          color: p.ink,
         ),
       ),
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: Colors.white,
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: p.surface,
         surfaceTintColor: Colors.transparent,
         showDragHandle: true,
         shape: RoundedRectangleBorder(
@@ -256,19 +348,19 @@ class AppTheme {
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
-        color: Colors.white,
+        color: p.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
         ),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
+      progressIndicatorTheme: ProgressIndicatorThemeData(
         color: AppColors.primary,
-        linearTrackColor: AppColors.track,
+        linearTrackColor: p.track,
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.ink,
+        backgroundColor: p.snack,
         contentTextStyle: const TextStyle(
           color: Colors.white,
           fontSize: 14.5,
@@ -279,8 +371,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
         ),
       ),
-      dividerTheme: const DividerThemeData(
-        color: AppColors.line,
+      dividerTheme: DividerThemeData(
+        color: p.line,
         space: 1,
         thickness: 1,
       ),

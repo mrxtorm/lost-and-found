@@ -107,7 +107,7 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
             Text(
               'Rate your experience returning "${widget.completed.itemTitle}". '
               'This is optional.',
-              style: const TextStyle(color: AppColors.muted),
+              style: TextStyle(color: AppColors.muted),
             ),
             const SizedBox(height: 16),
             Row(

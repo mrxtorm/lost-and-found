@@ -43,7 +43,10 @@ class AppSnack {
           ),
           action: actionLabel == null
               ? null
-              : SnackBarAction(label: actionLabel, onPressed: onAction ?? () {}),
+              : SnackBarAction(
+                  label: actionLabel,
+                  onPressed: onAction ?? () {},
+                ),
         ),
       );
   }
@@ -53,6 +56,42 @@ class AppSnack {
   static void error(BuildContext c, String m) =>
       show(c, m, kind: SnackKind.error);
   static void info(BuildContext c, String m) => show(c, m);
+}
+
+/// One consistent "Are you sure?" dialog. Resolves to true only when the
+/// user taps [confirmLabel]; Cancel, back and tapping outside are "no".
+Future<bool> confirmAction(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String confirmLabel,
+  bool destructive = false,
+  IconData? icon,
+}) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      icon: icon == null
+          ? null
+          : Icon(icon, color: destructive ? AppColors.error : null),
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: destructive
+              ? FilledButton.styleFrom(backgroundColor: AppColors.error)
+              : null,
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: Text(confirmLabel),
+        ),
+      ],
+    ),
+  );
+  return confirmed == true;
 }
 
 /// Friendly text for an exception; avoids showing "Exception: ..." dumps.
@@ -114,7 +153,7 @@ class EmptyState extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.muted, height: 1.4),
+            style: TextStyle(color: AppColors.muted, height: 1.4),
           ),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 20),
@@ -168,7 +207,7 @@ class LoadingView extends StatelessWidget {
             const CircularProgressIndicator(),
             if (label != null) ...[
               const SizedBox(height: 14),
-              Text(label!, style: const TextStyle(color: AppColors.muted)),
+              Text(label!, style: TextStyle(color: AppColors.muted)),
             ],
           ],
         ),
@@ -216,13 +255,13 @@ class _Block extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          color: AppColors.track,
-          borderRadius: BorderRadius.circular(radius),
-        ),
-      );
+    width: width,
+    height: height,
+    decoration: BoxDecoration(
+      color: AppColors.track,
+      borderRadius: BorderRadius.circular(radius),
+    ),
+  );
 }
 
 /// Placeholder shaped like an [ItemCard], shown while the feed loads.
@@ -234,7 +273,7 @@ class ItemCardSkeleton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Container(
-        color: Colors.white,
+        color: AppColors.surface,
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
         child: _Pulse(
           child: Column(
@@ -303,7 +342,7 @@ class OfflineBanner extends StatelessWidget {
       liveRegion: true,
       child: Container(
         width: double.infinity,
-        color: AppColors.ink,
+        color: AppColors.snack,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: const Row(
           children: [
@@ -347,7 +386,8 @@ class ProgressSteps extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Step ${current + 1} of ${steps.length}: ${steps[current]}'
+      label:
+          'Step ${current + 1} of ${steps.length}: ${steps[current]}'
           '${failed ? ', failed' : ''}',
       child: ExcludeSemantics(
         child: Row(
@@ -368,8 +408,8 @@ class ProgressSteps extends StatelessWidget {
     final color = active && failed
         ? AppColors.error
         : (done || active)
-            ? AppColors.primary
-            : AppColors.track;
+        ? AppColors.primary
+        : AppColors.track;
     return Column(
       children: [
         Row(
@@ -387,16 +427,23 @@ class ProgressSteps extends StatelessWidget {
               height: 24,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: done || (active && failed) ? color : Colors.white,
+                color: done || (active && failed) ? color : AppColors.surface,
                 shape: BoxShape.circle,
                 border: Border.all(color: color, width: 2),
               ),
               child: done
-                  ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    )
                   : active && failed
-                      ? const Icon(Icons.close_rounded,
-                          size: 14, color: Colors.white)
-                      : null,
+                  ? const Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    )
+                  : null,
             ),
             Expanded(
               child: Container(

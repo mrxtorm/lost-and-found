@@ -96,6 +96,27 @@ class NotificationRepository {
     }
   }
 
+  /// Removes the notification from the local cache right away, then from
+  /// Firestore. The server delete isn't awaited: offline, Firestore queues
+  /// it and already hides the doc from snapshots, so the next sync pass
+  /// won't bring it back.
+  Future<void> deleteNotification(String notificationId) async {
+    await _db.deleteNotificationLocally(notificationId);
+    unawaited(
+      _notificationService
+          .deleteNotification(notificationId)
+          // Local-only notifications have no server doc - nothing to do.
+          .catchError((_) {}),
+    );
+  }
+
+  Future<void> deleteAllNotifications(String recipientId) async {
+    await _db.deleteAllNotificationsLocally(recipientId);
+    unawaited(
+      _notificationService.deleteAllNotifications().catchError((_) {}),
+    );
+  }
+
   // ---------------------------------------------------------------------
   // SYNC
   // ---------------------------------------------------------------------

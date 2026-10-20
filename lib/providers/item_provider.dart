@@ -4,7 +4,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../data/repositories/item_repository.dart';
+import '../models/item_category.dart';
 import '../models/item_model.dart';
+import '../services/claim_service.dart';
 import '../services/item_matching_service.dart';
 
 /// Owns the live list of items and the Home / My Posts filter state, so
@@ -33,11 +35,15 @@ class ItemProvider with ChangeNotifier {
   String selectedStatus = 'All';
   String selectedCategory = 'All';
 
-  // My Posts screen filter.
+  // My Posts screen filter. 'Archived' shows claimed posts.
   String myPostsFilter = 'All';
 
+  /// Archived posts already being deleted, so each is purged only once.
+  final Set<String> _purging = {};
+
   ItemProvider(this._itemRepository) {
-    _itemRepository.startRemoteSync();
+    // The Firestore listener starts in [setCurrentUserId]: before sign-in
+    // (and Terms acceptance) Firestore would refuse it.
     _subscribeAllItems();
   }
 
@@ -57,6 +63,11 @@ class ItemProvider with ChangeNotifier {
   void setCurrentUserId(String? uid) {
     if (uid == _currentUserId) return;
     _currentUserId = uid;
+    if (uid == null) {
+      _itemRepository.stopRemoteSync();
+    } else {
+      _itemRepository.restartRemoteSync();
+    }
     // The "all items" query also depends on the current user (so an
     // offline-created, not-yet-synced post is still visible to its own
     // author), so it needs to be re-subscribed too.
@@ -76,6 +87,7 @@ class ItemProvider with ChangeNotifier {
       _myItems = items;
       _isLoadingMine = false;
       notifyListeners();
+      _purgeExpiredArchive(items);
     });
   }
 
@@ -104,6 +116,8 @@ class ItemProvider with ChangeNotifier {
       if (_currentUserId != null && item.ownerId == _currentUserId) {
         return false;
       }
+      // Claimed posts wait in their owner's archive; they're done here.
+      if (item.isClaimed) return false;
 
       final query = searchQuery.toLowerCase().trim();
       final matchesSearch = query.isEmpty ||
@@ -115,7 +129,8 @@ class ItemProvider with ChangeNotifier {
           item.status.toLowerCase() == selectedStatus.toLowerCase();
 
       final matchesCategory = selectedCategory == 'All' ||
-          item.category.toLowerCase() == selectedCategory.toLowerCase();
+          ItemCategory.canonical(item.category) ==
+              ItemCategory.canonical(selectedCategory);
 
       return matchesSearch && matchesStatus && matchesCategory;
     }).toList();
@@ -148,9 +163,46 @@ class ItemProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Deletes this user's archived (claimed) posts whose archive time is up,
+  /// along with their chat. There's no server job for this, so it runs
+  /// whenever the owner's posts load; failures (e.g. offline) just retry on
+  /// the next load.
+  Future<void> _purgeExpiredArchive(List<ItemModel> items) async {
+    final now = DateTime.now();
+    for (final item in items) {
+      final deletesAt = item.archiveDeletesAt;
+      if (!item.isClaimed || deletesAt == null || deletesAt.isAfter(now)) {
+        continue;
+      }
+      if (!_purging.add(item.id)) continue;
+      try {
+        await ClaimService().purgeArchivedItem(item);
+        await refreshItem(item.id);
+      } catch (_) {
+        _purging.remove(item.id);
+      }
+    }
+  }
+
+  /// Pulls one post's latest server state into the cache now (after a
+  /// claim, undo or delete). Never throws; the listener catches up anyway.
+  Future<void> refreshItem(String itemId) async {
+    try {
+      await _itemRepository.refreshItem(itemId);
+    } catch (_) {}
+  }
+
+  /// All of the signed-in user's own posts, ignoring the My Posts filter.
+  List<ItemModel> get allMyPosts => _myItems;
+
   /// The signed-in user's own posts, with the My Posts status filter applied.
   List<ItemModel> get myPosts {
-    if (myPostsFilter == 'All') return _myItems;
+    if (myPostsFilter == 'Archived') {
+      return _myItems.where((item) => item.isClaimed).toList();
+    }
+    if (myPostsFilter == 'All') {
+      return _myItems.where((item) => !item.isClaimed).toList();
+    }
     return _myItems
         .where((item) =>
     item.status.toLowerCase() == myPostsFilter.toLowerCase())

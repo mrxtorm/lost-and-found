@@ -6,7 +6,9 @@ import '../providers/auth_provider.dart';
 import '../providers/item_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_feedback.dart';
+import '../widgets/claim_actions.dart';
 import '../widgets/item_ui.dart';
+import 'edit_post_screen.dart';
 import 'item_details_screen.dart';
 import 'potential_matches_screen.dart';
 
@@ -19,8 +21,11 @@ class MyPostsScreen extends StatelessWidget {
     return status == 'lost' || status == 'found' || status == 'pending';
   }
 
-  void showEditMessage(BuildContext context, ItemModel item) {
-    AppSnack.show(context, 'Edit "${item.title}" will be implemented later.', kind: SnackKind.info);
+  void openEdit(BuildContext context, ItemModel item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => EditPostScreen(item: item)),
+    );
   }
 
   Future<void> confirmDelete(BuildContext context, ItemModel item) async {
@@ -82,7 +87,7 @@ class MyPostsScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
             child: SegmentedTabs(
-              options: const ['All', 'Lost', 'Found', 'Claimed'],
+              options: const ['All', 'Lost', 'Found', 'Archived'],
               selected: itemProvider.myPostsFilter,
               onChanged: itemProvider.setMyPostsFilter,
             ),
@@ -123,7 +128,7 @@ class MyPostsScreen extends StatelessWidget {
                       ),
                       child: Text(
                         '${items.length} post${items.length == 1 ? '' : 's'}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.muted,
                           fontWeight: FontWeight.w600,
                         ),
@@ -147,7 +152,7 @@ class MyPostsScreen extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -189,7 +194,7 @@ class MyPostsScreen extends StatelessWidget {
                                     item.title,
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 16.5,
                                       fontWeight: FontWeight.w800,
                                       height: 1.2,
@@ -203,7 +208,7 @@ class MyPostsScreen extends StatelessWidget {
                                 height: 32,
                                 child: PopupMenuButton<String>(
                                   padding: EdgeInsets.zero,
-                                  icon: const Icon(
+                                  icon: Icon(
                                     Icons.more_horiz_rounded,
                                     color: AppColors.muted,
                                   ),
@@ -211,18 +216,37 @@ class MyPostsScreen extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(14),
                                   ),
                                   onSelected: (value) {
-                                    if (value == 'edit') {
-                                      showEditMessage(context, item);
-                                    } else {
-                                      confirmDelete(context, item);
+                                    switch (value) {
+                                      case 'edit':
+                                        openEdit(context, item);
+                                      case 'claimed':
+                                        ClaimActions.markReturned(
+                                          context,
+                                          item,
+                                        );
+                                      case 'undo':
+                                        ClaimActions.undo(context, item);
+                                      default:
+                                        confirmDelete(context, item);
                                     }
                                   },
-                                  itemBuilder: (_) => const [
-                                    PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('Edit'),
-                                    ),
-                                    PopupMenuItem(
+                                  itemBuilder: (_) => [
+                                    if (item.isClaimed)
+                                      const PopupMenuItem(
+                                        value: 'undo',
+                                        child: Text('Undo claim'),
+                                      )
+                                    else
+                                      const PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text('Edit'),
+                                      ),
+                                    if (item.status.toLowerCase() == 'lost')
+                                      const PopupMenuItem(
+                                        value: 'claimed',
+                                        child: Text('Mark as claimed'),
+                                      ),
+                                    const PopupMenuItem(
                                       value: 'delete',
                                       child: Text(
                                         'Delete',
@@ -292,6 +316,12 @@ class MyPostsScreen extends StatelessWidget {
                   ),
                 ],
 
+                // Archived: who it went to, when it's deleted, undo
+                if (item.isClaimed) ...[
+                  const SizedBox(height: 12),
+                  _buildArchiveBanner(context, item),
+                ],
+
                 // Check matches
                 if (_canCheckMatches(item)) ...[
                   const SizedBox(height: 12),
@@ -331,6 +361,62 @@ class MyPostsScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildArchiveBanner(BuildContext context, ItemModel item) {
+    final other = item.claimedByName ?? '';
+    final who = other.isEmpty
+        ? 'Marked as claimed'
+        : item.statusBeforeClaim == 'Found'
+            ? 'Claimed by $other'
+            : 'Returned by $other';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.inventory_2_outlined,
+            size: 18,
+            color: AppColors.primary,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  who,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink,
+                  ),
+                ),
+                Text(
+                  ClaimActions.deletesInLabel(item),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => ClaimActions.undo(context, item),
+            child: const Text('Undo'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _metaRow(IconData icon, String value) {
     return Row(
       children: [
@@ -341,7 +427,7 @@ class MyPostsScreen extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13, color: AppColors.muted),
+            style: TextStyle(fontSize: 13, color: AppColors.muted),
           ),
         ),
       ],
@@ -356,7 +442,10 @@ class MyPostsScreen extends StatelessWidget {
         title: 'Nothing here yet',
         message: filter == 'All'
             ? 'Posts you create will show up here.'
-            : 'You have no ${filter.toLowerCase()} posts.',
+            : filter == 'Archived'
+                ? 'Claimed posts wait here for '
+                    '${ItemModel.archiveDays} days before they are deleted.'
+                : 'You have no ${filter.toLowerCase()} posts.',
       ),
     );
   }

@@ -82,6 +82,14 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   }
 
   Future<void> _signOut() async {
+    final ok = await confirmAction(
+      context,
+      title: 'Sign out?',
+      message: 'You can verify your email later by signing in again.',
+      confirmLabel: 'Sign out',
+      icon: Icons.logout,
+    );
+    if (!ok || !mounted) return;
     await context.read<AuthProvider>().signOut();
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(

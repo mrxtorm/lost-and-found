@@ -34,7 +34,7 @@ class CategoryCard extends StatelessWidget {
         alignment: Alignment.center,
         padding: const EdgeInsets.fromLTRB(12, 9, 14, 9),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.ink : Colors.white,
+          color: isSelected ? AppColors.ink : AppColors.surface,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
             color: isSelected ? AppColors.ink : AppColors.line,
@@ -43,14 +43,14 @@ class CategoryCard extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: isSelected ? Colors.white : color),
+            Icon(icon, size: 18, color: isSelected ? AppColors.surface : color),
             const SizedBox(width: 6),
             Text(
               title,
               style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w600,
-                color: isSelected ? Colors.white : AppColors.ink,
+                color: isSelected ? AppColors.surface : AppColors.ink,
               ),
             ),
           ],

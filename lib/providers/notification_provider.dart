@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/repositories/notification_repository.dart';
 import '../models/notification_model.dart';
+import '../services/notification_preferences_service.dart';
 
 /// Owns the live notifications list and unread count.
 ///
@@ -16,11 +17,14 @@ import '../models/notification_model.dart';
 /// (done from [AuthGate] whenever auth state changes).
 class NotificationProvider with ChangeNotifier {
   final NotificationRepository _notificationRepository;
+  final NotificationPreferencesService _preferencesService =
+      NotificationPreferencesService();
 
   StreamSubscription<List<NotificationModel>>? _sub;
   List<NotificationModel> _notifications = [];
   bool _isLoading = false;
   String? _currentUserId;
+  Set<NotificationCategory> _muted = {};
 
   NotificationProvider(this._notificationRepository);
 
@@ -29,6 +33,7 @@ class NotificationProvider with ChangeNotifier {
     _currentUserId = uid;
     _sub?.cancel();
     _notifications = [];
+    _muted = {};
 
     if (uid == null) {
       _notificationRepository.stopRemoteSync();
@@ -39,6 +44,12 @@ class NotificationProvider with ChangeNotifier {
 
     _isLoading = true;
     notifyListeners();
+
+    _preferencesService.getMuted(uid).then((muted) {
+      if (uid != _currentUserId) return;
+      _muted = muted;
+      notifyListeners();
+    });
 
     _notificationRepository.startRemoteSync(uid);
     _sub = _notificationRepository.watchNotifications(uid).listen((items) {
@@ -51,9 +62,31 @@ class NotificationProvider with ChangeNotifier {
     });
   }
 
-  List<NotificationModel> get notifications => _notifications;
+  /// Notifications the user hasn't muted in Notification Settings.
+  List<NotificationModel> get notifications =>
+      _muted.isEmpty ? _notifications : _notifications.where(_isVisible).toList();
   bool get isLoading => _isLoading;
-  int get unreadCount => _notifications.where((n) => !n.isRead).length;
+  int get unreadCount => notifications.where((n) => !n.isRead).length;
+
+  bool _isVisible(NotificationModel n) {
+    final category = NotificationCategory.forType(n.type);
+    return category == null || !_muted.contains(category);
+  }
+
+  bool isCategoryEnabled(NotificationCategory category) =>
+      !_muted.contains(category);
+
+  Future<void> setCategoryEnabled(
+    NotificationCategory category,
+    bool enabled,
+  ) async {
+    final uid = _currentUserId;
+    if (uid == null) return;
+    _muted = {..._muted};
+    enabled ? _muted.remove(category) : _muted.add(category);
+    notifyListeners();
+    await _preferencesService.setMuted(uid, _muted);
+  }
 
   /// Pull-to-refresh entry point for the Notifications screen.
   Future<void> refreshNotifications() async {
@@ -74,6 +107,23 @@ class NotificationProvider with ChangeNotifier {
     final uid = _currentUserId;
     if (uid == null) return Future.value();
     return _notificationRepository.markAllAsRead(uid);
+  }
+
+  /// Drops the notification from the in-memory list right away (a swiped
+  /// Dismissible must not reappear on the next rebuild), then deletes it.
+  Future<void> deleteNotification(String notificationId) {
+    _notifications =
+        _notifications.where((n) => n.id != notificationId).toList();
+    notifyListeners();
+    return _notificationRepository.deleteNotification(notificationId);
+  }
+
+  Future<void> deleteAllNotifications() {
+    final uid = _currentUserId;
+    if (uid == null) return Future.value();
+    _notifications = [];
+    notifyListeners();
+    return _notificationRepository.deleteAllNotifications(uid);
   }
 
   @override

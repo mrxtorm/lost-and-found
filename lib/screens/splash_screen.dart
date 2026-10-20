@@ -41,26 +41,29 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.find_in_page,
-              size: 100,
-              color: AppColors.primary,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: Image.asset(
+                'assets/icon/app_icon.png',
+                width: 120,
+                height: 120,
+              ),
             ),
             const SizedBox(height: 20),
             const Text(
-              "Campus Lost & Found",
+              "FoundIt",
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               "Find What Matters",
               style: TextStyle(
                 color: AppColors.muted,

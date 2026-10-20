@@ -1,26 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/item_category.dart';
 import '../providers/item_provider.dart';
+import '../services/suspension_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/category_card.dart';
 import '../widgets/item_card.dart';
 import '../widgets/item_ui.dart';
 import '../widgets/search_bar_widget.dart';
+import '../widgets/suspension_notice.dart';
 import 'report_item_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  static const List<_Category> _categories = [
-    _Category('Electronics', Icons.phone_android_rounded, Color(0xFF2F5BEA)),
-    _Category('Wallet', Icons.account_balance_wallet_rounded, Color(0xFFE08A00)),
-    _Category('ID', Icons.badge_rounded, Color(0xFF1F9D68)),
-    _Category('Keys', Icons.key_rounded, Color(0xFFE5484D)),
-    _Category('Books', Icons.menu_book_rounded, Color(0xFF7C3AED)),
-    _Category('Others', Icons.category_rounded, Color(0xFF0891B2)),
-  ];
+
+  /// One plain sentence per tab so first-time users know what they're
+  /// looking at.
+  static const Map<String, String> _tabHints = {
+    'All': 'Everything people have reported, newest first.',
+    'Lost': 'Things people lost. Seen one? Message them.',
+    'Found': 'Things people found. Is one yours? Tap it to claim.',
+  };
+
+  Future<void> _report(BuildContext context) async {
+    // Suspended users can't post (enforced by Firestore rules too), so
+    // explain why up front instead of letting them fill in the form.
+    final suspendedUntil = await SuspensionService().activeSuspensionEnd();
+    if (!context.mounted) return;
+    if (suspendedUntil != null) {
+      await showSuspendedDialog(context, suspendedUntil);
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ReportItemScreen()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,15 +51,10 @@ class HomeScreen extends StatelessWidget {
         tooltip: 'Report a lost or found item',
         icon: const Icon(Icons.add_rounded),
         label: const Text(
-          'New post',
-          style: TextStyle(fontWeight: FontWeight.w700),
+          'Report item',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5),
         ),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ReportItemScreen()),
-          );
-        },
+        onPressed: () => _report(context),
       ),
       body: RefreshIndicator(
         onRefresh: provider.refreshHome,
@@ -53,7 +66,7 @@ class HomeScreen extends StatelessWidget {
               floating: true,
               snap: true,
               titleSpacing: 20,
-              title: Text('Campus Lost & Found'),
+              title: Text('FoundIt'),
             ),
 
             // SEARCH
@@ -67,14 +80,48 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
 
-            // LOST / FOUND
+            // LOST / FOUND + what it means
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                child: SegmentedTabs(
-                  options: const ['All', 'Lost', 'Found'],
-                  selected: provider.selectedStatus,
-                  onChanged: provider.setSelectedStatus,
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SegmentedTabs(
+                      options: const ['All', 'Lost', 'Found'],
+                      selected: provider.selectedStatus,
+                      onChanged: provider.setSelectedStatus,
+                    ),
+                    const SizedBox(height: 10),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: Row(
+                        key: ValueKey(provider.selectedStatus),
+                        children: [
+                          Icon(
+                            provider.selectedStatus == 'All'
+                                ? Icons.info_outline_rounded
+                                : statusIcon(provider.selectedStatus),
+                            size: 18,
+                            color: provider.selectedStatus == 'All'
+                                ? AppColors.muted
+                                : statusColor(provider.selectedStatus),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _tabHints[provider.selectedStatus] ?? '',
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                height: 1.35,
+                                color: AppColors.muted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -82,17 +129,17 @@ class HomeScreen extends StatelessWidget {
             // CATEGORIES
             SliverToBoxAdapter(
               child: SizedBox(
-                height: 64,
+                height: 68,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
                     vertical: 12,
                   ),
-                  itemCount: _categories.length,
+                  itemCount: ItemCategory.all.length,
                   separatorBuilder: (_, _) => const SizedBox(width: 8),
                   itemBuilder: (context, index) {
-                    final category = _categories[index];
+                    final category = ItemCategory.all[index];
                     return CategoryCard(
                       icon: category.icon,
                       title: category.name,
@@ -106,58 +153,61 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
 
-            // RESULT COUNT + CLEAR (only while filtering)
-            if (provider.hasActiveHomeFilters)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 12, 6),
+            // RESULT COUNT + CLEAR
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
+                child: SizedBox(
+                  height: 44,
                   child: Row(
                     children: [
                       Expanded(
                         child: Text(
-                          '${items.length} result${items.length == 1 ? '' : 's'}',
-                          style: const TextStyle(
+                          provider.hasActiveHomeFilters
+                              ? '${items.length} '
+                                  'result${items.length == 1 ? '' : 's'}'
+                              : 'Latest posts',
+                          style: TextStyle(
+                            fontSize: 15,
                             color: AppColors.muted,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
-                      TextButton(
-                        onPressed: provider.clearHomeFilters,
-                        child: const Text('Clear filters'),
-                      ),
+                      if (provider.hasActiveHomeFilters)
+                        TextButton.icon(
+                          onPressed: provider.clearHomeFilters,
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          label: const Text('Clear filters'),
+                        ),
                     ],
                   ),
                 ),
               ),
+            ),
 
             // FEED
             if (isLoading && items.isEmpty)
               const SliverToBoxAdapter(child: FeedSkeleton())
             else if (items.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
+              SliverToBoxAdapter(
                 child: EmptyState(
                   icon: provider.hasActiveHomeFilters
                       ? Icons.search_off_rounded
                       : Icons.inventory_2_outlined,
                   title: provider.hasActiveHomeFilters
                       ? 'No items match'
-                      : 'No reports yet',
+                      : 'No posts yet',
                   message: provider.hasActiveHomeFilters
                       ? 'Try a different word, or clear the filters.'
-                      : 'Lost and found items will show up here.',
+                      : 'Be the first! Lost and found items will show '
+                          'up here.',
                   actionLabel: provider.hasActiveHomeFilters
                       ? 'Clear filters'
                       : 'Report an item',
                   onAction: provider.hasActiveHomeFilters
                       ? provider.clearHomeFilters
-                      : () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ReportItemScreen(),
-                            ),
-                          ),
+                      : () => _report(context),
                 ),
               )
             else
@@ -174,10 +224,3 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _Category {
-  final String name;
-  final IconData icon;
-  final Color color;
-
-  const _Category(this.name, this.icon, this.color);
-}

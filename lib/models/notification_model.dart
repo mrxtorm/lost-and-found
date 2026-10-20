@@ -11,6 +11,13 @@ class NotificationType {
   static const claimUpdate = 'claim_update';
   static const message = 'message';
 
+  /// An admin removed the recipient's post or message. Only admins can
+  /// create this type (see firestore.rules).
+  static const moderationRemoved = 'moderation_removed';
+
+  /// An admin undid a removal and restored the post/message.
+  static const moderationRestored = 'moderation_restored';
+
   /// Local-only: fired when an item reported while offline finishes
   /// syncing to Firestore. Never comes from the server.
   static const reportPosted = 'report_posted';

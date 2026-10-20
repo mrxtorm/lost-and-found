@@ -5,6 +5,7 @@ import '../repositories/chat_repository.dart';
 import '../repositories/claim_repository.dart';
 import '../repositories/item_repository.dart';
 import '../repositories/notification_repository.dart';
+import '../../services/profile_sync_service.dart';
 
 /// Coordinates pushing every repository's queued offline changes to
 /// Firestore/Cloudinary.
@@ -22,6 +23,7 @@ class SyncManager {
   final ClaimRepository claimRepository;
   final ChatRepository chatRepository;
   final NotificationRepository notificationRepository;
+  final ProfileSyncService profileSyncService;
 
   StreamSubscription<bool>? _connectivitySub;
   Timer? _retryTimer;
@@ -34,6 +36,7 @@ class SyncManager {
     required this.claimRepository,
     required this.chatRepository,
     required this.notificationRepository,
+    required this.profileSyncService,
   });
 
   void start() {
@@ -64,6 +67,7 @@ class SyncManager {
       await claimRepository.pushPending(uid);
       await chatRepository.pushPending(uid);
       await notificationRepository.pushPending(uid);
+      await profileSyncService.pushPending(uid);
     } catch (_) {
       // Swallowed - we'll retry on the next connectivity change / timer.
     } finally {
@@ -89,6 +93,7 @@ class SyncManager {
       claimRepository.hasPendingWork(uid),
       chatRepository.hasPendingWork(uid),
       notificationRepository.hasPendingWork(uid),
+      profileSyncService.hasPendingWork(uid),
     ]);
     return results.any((hasPending) => hasPending);
   }

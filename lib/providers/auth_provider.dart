@@ -62,6 +62,32 @@ class AuthProvider with ChangeNotifier {
   Future<bool> reloadAndCheckVerified() =>
       _authService.reloadAndCheckVerified();
 
+  /// Updates the display name and/or photo. Pass an empty [photoUrl] to
+  /// remove the photo. Notifies listeners so the profile header refreshes
+  /// (Firebase's authStateChanges doesn't fire for profile edits).
+  Future<void> updateProfile({String? displayName, String? photoUrl}) async {
+    final user = await _authService.updateProfile(
+      displayName: displayName,
+      photoUrl: photoUrl,
+    );
+    if (user == null) return;
+    _user = user;
+    notifyListeners();
+    // Keep the login screen's account tile in sync with the new name/photo.
+    await _rememberedAccountsService.remember(
+      RememberedAccount(
+        uid: user.uid,
+        email: user.email ?? '',
+        displayName: user.displayName,
+        photoUrl: user.photoURL,
+        lastSignedInAt: DateTime.now(),
+      ),
+    );
+  }
+
+  Future<void> changePassword(String currentPassword, String newPassword) =>
+      _authService.changePassword(currentPassword, newPassword);
+
   Future<void> signOut() async {
     await _authService.signOut();
   }

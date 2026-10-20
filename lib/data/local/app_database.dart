@@ -29,7 +29,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(QueryExecutor executor) : super(executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -38,6 +38,15 @@ class AppDatabase extends _$AppDatabase {
           if (from < 2) {
             await m.addColumn(items, items.imageUrls);
             await m.addColumn(items, items.localImagePaths);
+          }
+          if (from < 3) {
+            await m.addColumn(items, items.ownerPhotoUrl);
+          }
+          if (from < 4) {
+            await m.addColumn(items, items.claimedAt);
+            await m.addColumn(items, items.claimedBy);
+            await m.addColumn(items, items.claimedByName);
+            await m.addColumn(items, items.claimedFrom);
           }
         },
       );
@@ -68,6 +77,11 @@ class AppDatabase extends _$AppDatabase {
             (t) => t.pendingDelete.equals(false) & t.ownerId.equals(ownerId),
       );
     return query.watch();
+  }
+
+  /// One item, live (null once it's deleted).
+  Stream<ItemRow?> watchItem(String id) {
+    return (select(items)..where((t) => t.id.equals(id))).watchSingleOrNull();
   }
 
   Future<ItemRow?> getItem(String id) {
@@ -137,6 +151,29 @@ class AppDatabase extends _$AppDatabase {
   /// with a pending change are left alone until they've been pushed.
   /// Local rows that are no longer present on the server (and have no
   /// pending change of their own) are removed - they were deleted remotely.
+  /// Same as [syncItemsFromServer] for a single item. [serverRow] null
+  /// means it no longer exists on the server.
+  Future<void> syncItemFromServer(String id, ItemsCompanion? serverRow) async {
+    await transaction(() async {
+      final local = await getItem(id);
+      final hasPendingChange = local != null &&
+          (local.pendingCreate || local.pendingUpdate || local.pendingDelete);
+      if (hasPendingChange) return;
+      if (serverRow == null) {
+        await deleteItemRow(id);
+        return;
+      }
+      await into(items).insertOnConflictUpdate(
+        serverRow.copyWith(
+          synced: const Value(true),
+          pendingCreate: const Value(false),
+          pendingUpdate: const Value(false),
+          pendingDelete: const Value(false),
+        ),
+      );
+    });
+  }
+
   Future<void> syncItemsFromServer(List<ItemsCompanion> serverRows) async {
     await transaction(() async {
       final serverIds = serverRows.map((r) => r.id.value).toSet();
@@ -473,6 +510,16 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  Future<void> deleteNotificationLocally(String id) {
+    return (delete(notifications)..where((t) => t.id.equals(id))).go();
+  }
+
+  Future<void> deleteAllNotificationsLocally(String recipientId) {
+    return (delete(notifications)
+      ..where((t) => t.recipientId.equals(recipientId)))
+        .go();
+  }
+
   Future<List<NotificationRow>> pendingMarkReadNotifications(
       String recipientId,
       ) {
@@ -534,6 +581,26 @@ class AppDatabase extends _$AppDatabase {
   /// visible if a different account signs in on this device afterwards.
   /// Anything still pending sync is left alone so it isn't lost - it will
   /// sync the next time this same account is online.
+  /// Rewrites [uid]'s name (and photo, on posts) on every cached row they
+  /// authored, including ones still waiting to sync, so a profile edit shows
+  /// up immediately (and offline-queued posts/claims/messages upload with
+  /// the new details).
+  Future<void> applyProfileLocally(
+    String uid,
+    String name,
+    String photoUrl,
+  ) async {
+    await transaction(() async {
+      await (update(items)..where((t) => t.ownerId.equals(uid))).write(
+        ItemsCompanion(username: Value(name), ownerPhotoUrl: Value(photoUrl)),
+      );
+      await (update(claims)..where((t) => t.claimantId.equals(uid)))
+          .write(ClaimsCompanion(claimantName: Value(name)));
+      await (update(messages)..where((t) => t.senderId.equals(uid)))
+          .write(MessagesCompanion(senderName: Value(name)));
+    });
+  }
+
   Future<void> clearUserScopedCacheOnLogout(String signedOutUserId) async {
     await transaction(() async {
       await (delete(conversations)

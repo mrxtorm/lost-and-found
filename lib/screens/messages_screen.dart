@@ -18,8 +18,12 @@ class MessagesScreen extends StatefulWidget {
 }
 
 class _MessagesScreenState extends State<MessagesScreen> {
+  static const _all = 'All';
+  static const _unread = 'Unread';
+
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String _tab = _all;
 
   @override
   void dispose() {
@@ -29,9 +33,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   List<ConversationModel> _filter(List<ConversationModel> conversations) {
     final query = _searchQuery.trim().toLowerCase();
-    if (query.isEmpty) return conversations;
 
     return conversations.where((conversation) {
+      if (_tab == _unread && conversation.unreadCount == 0) return false;
+      if (query.isEmpty) return true;
       return conversation.itemName.toLowerCase().contains(query) ||
           conversation.otherUserName.toLowerCase().contains(query) ||
           conversation.lastMessage.toLowerCase().contains(query);
@@ -41,39 +46,81 @@ class _MessagesScreenState extends State<MessagesScreen> {
   @override
   Widget build(BuildContext context) {
     final chatProvider = context.watch<ChatProvider>();
+    final unreadChats =
+        chatProvider.conversations.where((c) => c.unreadCount > 0).length;
 
     return Scaffold(
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
-        title: const Text(
-          'Messages',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        backgroundColor: AppColors.surface,
+        toolbarHeight: 64,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Messages',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.6,
+                color: AppColors.ink,
+              ),
+            ),
+            if (unreadChats > 0)
+              Text(
+                unreadChats == 1
+                    ? '1 unread conversation'
+                    : '$unreadChats unread conversations',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+          ],
         ),
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
             child: TextField(
               controller: _searchController,
               onChanged: (value) => setState(() => _searchQuery = value),
+              style: const TextStyle(fontSize: 16),
+              textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText: 'Search conversations',
-                prefixIcon: const Icon(Icons.search),
+                hintText: 'Search people, items or messages',
+                prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: _searchQuery.isEmpty
                     ? null
                     : IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() => _searchQuery = '');
-                  },
-                ),
-                filled: true,
+                        tooltip: 'Clear search',
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      ),
+                fillColor: AppColors.bg,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                   borderSide: BorderSide.none,
                 ),
               ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: SegmentedTabs(
+              options: const [_all, _unread],
+              selected: _tab,
+              onChanged: (option) => setState(() => _tab = option),
             ),
           ),
           Expanded(
@@ -97,12 +144,25 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [
-                      _StateMessage(
-                        icon: Icons.chat_bubble_outline,
-                        text: _searchQuery.isEmpty
-                            ? 'No conversations yet.'
-                            : 'No conversations match your search.',
-                      ),
+                      if (_searchQuery.isNotEmpty)
+                        const _StateMessage(
+                          icon: Icons.search_off_rounded,
+                          text: 'No matches',
+                          message: 'Try a different name or item.',
+                        )
+                      else if (_tab == _unread)
+                        const _StateMessage(
+                          icon: Icons.mark_chat_read_outlined,
+                          text: "You're all caught up",
+                          message: 'No unread messages right now.',
+                        )
+                      else
+                        const _StateMessage(
+                          icon: Icons.chat_bubble_outline_rounded,
+                          text: 'No conversations yet',
+                          message:
+                              'Start a chat from an item you found or lost.',
+                        ),
                     ],
                   ),
                 );
@@ -112,11 +172,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 onRefresh: chatProvider.refreshConversations,
                 child: ListView.separated(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.only(top: 4, bottom: 16),
                   itemCount: conversations.length,
-                  separatorBuilder: (_, __) => const Divider(
+                  separatorBuilder: (_, _) => const Divider(
                     height: 1,
-                    indent: 88,
+                    indent: 100,
+                    endIndent: 16,
                   ),
                   itemBuilder: (context, index) {
                     final conversation = conversations[index];
@@ -153,113 +214,191 @@ class _ConversationTile extends StatelessWidget {
     required this.onTap,
   });
 
+  static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
   String _formatTime(DateTime dateTime) {
     if (dateTime.millisecondsSinceEpoch == 0) return '';
     final now = DateTime.now();
-    if (dateTime.year == now.year &&
-        dateTime.month == now.month &&
-        dateTime.day == now.day) {
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(dateTime.year, dateTime.month, dateTime.day);
+    final daysAgo = today.difference(day).inDays;
+
+    if (daysAgo == 0) {
       final hour = dateTime.hour == 0
           ? 12
           : dateTime.hour > 12
-          ? dateTime.hour - 12
-          : dateTime.hour;
+              ? dateTime.hour - 12
+              : dateTime.hour;
       return '$hour:${dateTime.minute.toString().padLeft(2, '0')} '
           '${dateTime.hour >= 12 ? 'PM' : 'AM'}';
     }
-    return '${dateTime.month}/${dateTime.day}';
+    if (daysAgo == 1) return 'Yesterday';
+    if (daysAgo < 7) return _weekdays[dateTime.weekday - 1];
+    return '${dateTime.month}/${dateTime.day}/${dateTime.year % 100}';
   }
 
   @override
   Widget build(BuildContext context) {
     final unread = conversation.unreadCount > 0;
+    final type = conversation.itemType.isEmpty
+        ? ''
+        : conversation.itemType[0].toUpperCase() +
+            conversation.itemType.substring(1).toLowerCase();
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: _ItemImage(url: conversation.itemImageUrl),
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              conversation.otherUserName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: unread ? FontWeight.w800 : FontWeight.w600,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            _formatTime(conversation.lastMessageTime),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: unread ? FontWeight.w700 : FontWeight.normal,
-              color: unread
-                  ? Theme.of(context).colorScheme.primary
-                  : AppColors.muted,
-            ),
-          ),
-        ],
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    conversation.itemName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
-                      color: AppColors.muted,
+    return Material(
+      color: unread
+          ? AppColors.primarySoft.withValues(alpha: 0.55)
+          : AppColors.surface,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Item photo with the other person's avatar tucked in the
+              // corner, so you can tell both "what" and "who" at a glance.
+              SizedBox(
+                width: 70,
+                height: 70,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    _ItemImage(url: conversation.itemImageUrl),
+                    Positioned(
+                      right: -4,
+                      bottom: -4,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          shape: BoxShape.circle,
+                        ),
+                        child: UserAvatar(
+                          name: conversation.otherUserName,
+                          size: 28,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    conversation.lastMessage.isEmpty
-                        ? 'Start a conversation'
-                        : conversation.lastMessage,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: unread ? Colors.black87 : AppColors.muted,
-                      fontWeight: unread ? FontWeight.w600 : FontWeight.normal,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (unread)
-              Container(
-                margin: const EdgeInsets.only(left: 8),
-                constraints: const BoxConstraints(minWidth: 22),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  conversation.unreadCount > 99
-                      ? '99+'
-                      : '${conversation.unreadCount}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  ],
                 ),
               ),
-          ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            conversation.otherUserName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight:
+                                  unread ? FontWeight.w800 : FontWeight.w700,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _formatTime(conversation.lastMessageTime),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight:
+                                unread ? FontWeight.w800 : FontWeight.w500,
+                            color: unread
+                                ? AppColors.primary
+                                : AppColors.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        if (type.isNotEmpty) ...[
+                          Icon(
+                            statusIcon(type),
+                            size: 15,
+                            color: statusColor(type),
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        Expanded(
+                          child: Text(
+                            conversation.itemName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: type.isEmpty
+                                  ? AppColors.muted
+                                  : statusColor(type),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            conversation.lastMessage.isEmpty
+                                ? 'Start a conversation'
+                                : conversation.lastMessage,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15,
+                              height: 1.35,
+                              fontStyle: conversation.lastMessage.isEmpty
+                                  ? FontStyle.italic
+                                  : null,
+                              color: unread ? AppColors.ink : AppColors.muted,
+                              fontWeight:
+                                  unread ? FontWeight.w600 : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                        if (unread)
+                          Container(
+                            margin: const EdgeInsets.only(left: 10),
+                            constraints: const BoxConstraints(minWidth: 24),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              conversation.unreadCount > 99
+                                  ? '99+'
+                                  : '${conversation.unreadCount}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      onTap: onTap,
     );
   }
 }
@@ -271,26 +410,27 @@ class _ItemImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 56,
-      height: 56,
+      width: 70,
+      height: 70,
       decoration: BoxDecoration(
-        color: AppColors.line,
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.track,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
       ),
       clipBehavior: Clip.antiAlias,
       child: url.isEmpty
-          ? const Icon(Icons.image_outlined, color: AppColors.muted)
+          ? Icon(Icons.image_outlined, color: AppColors.muted, size: 28)
           : Image(
-        image: CachedNetworkImageProvider(
-          optimizedImageUrl(url, width: 300),
-          maxWidth: 300,
-        ),
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(
-          Icons.image_outlined,
-          color: AppColors.muted,
-        ),
-      ),
+              image: CachedNetworkImageProvider(
+                optimizedImageUrl(url, width: 300),
+                maxWidth: 300,
+              ),
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Icon(
+                Icons.image_outlined,
+                color: AppColors.muted,
+                size: 28,
+              ),
+            ),
     );
   }
 }
@@ -298,21 +438,19 @@ class _ItemImage extends StatelessWidget {
 class _StateMessage extends StatelessWidget {
   final IconData icon;
   final String text;
+  final String message;
   final VoidCallback? onRetry;
 
   const _StateMessage({
     required this.icon,
     required this.text,
+    this.message = '',
     this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
     if (onRetry != null) return ErrorState(message: text, onRetry: onRetry);
-    return EmptyState(
-      icon: icon,
-      title: text,
-      message: 'Start a chat from an item you found or lost.',
-    );
+    return EmptyState(icon: icon, title: text, message: message);
   }
 }

@@ -61,6 +61,16 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
       return;
     }
 
+    final ok = await confirmAction(
+      context,
+      title: widget.isResend ? 'Resend your claim?' : 'Send your claim?',
+      message: 'The finder of "${widget.item.title}" will see your answer '
+          'and can accept or reject it.',
+      confirmLabel: widget.isResend ? 'Resend' : 'Send claim',
+      icon: Icons.assignment_turned_in_outlined,
+    );
+    if (!ok || !mounted) return;
+
     final claimProvider = context.read<ClaimProvider>();
 
     final success = await claimProvider.submitClaim(
@@ -214,7 +224,7 @@ class _ClaimItemScreenState extends State<ClaimItemScreen> {
                             Row(
                               children: [
 
-                                const Icon(
+                                Icon(
                                   Icons.location_on_outlined,
                                   size: 16,
                                   color: AppColors.muted,

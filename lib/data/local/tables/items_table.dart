@@ -44,9 +44,16 @@ class Items extends Table {
   TextColumn get localImagePaths => text().withDefault(const Constant(''))();
 
   TextColumn get username => text().withDefault(const Constant('Unknown'))();
+  TextColumn get ownerPhotoUrl => text().withDefault(const Constant(''))();
   TextColumn get ownerId => text().withDefault(const Constant(''))();
   TextColumn get verificationQuestion => text().nullable()();
   DateTimeColumn get createdAt => dateTime().nullable()();
+
+  /// Claim/archive details (see ItemModel). Null unless status is Claimed.
+  DateTimeColumn get claimedAt => dateTime().nullable()();
+  TextColumn get claimedBy => text().nullable()();
+  TextColumn get claimedByName => text().nullable()();
+  TextColumn get claimedFrom => text().nullable()();
 
   /// Last time this row changed locally. Used for last-write-wins conflict
   /// resolution against the server's `createdAt`/incoming snapshot data.

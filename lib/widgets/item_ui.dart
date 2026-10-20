@@ -16,7 +16,8 @@ IconData statusIcon(String status) {
     case 'lost':
       return Icons.search_rounded;
     case 'found':
-      return Icons.check_circle_outline_rounded;
+      // An eye ("spotted"), not a check: a check reads as "returned".
+      return Icons.visibility_outlined;
     case 'claimed':
       return Icons.verified_rounded;
     case 'pending':
@@ -103,12 +104,17 @@ class ItemImageCarousel extends StatefulWidget {
   /// Called with the index of the photo that was tapped.
   final ValueChanged<int>? onTapPhoto;
 
+  /// Distance of the photo counter (top/right) and page dots (bottom) from
+  /// the edges, so callers can keep them clear of toolbars or overlays.
+  final EdgeInsets overlayInsets;
+
   const ItemImageCarousel({
     super.key,
     required this.item,
     this.fit = BoxFit.cover,
     this.width = 800,
     this.onTapPhoto,
+    this.overlayInsets = const EdgeInsets.fromLTRB(10, 10, 10, 8),
   });
 
   @override
@@ -150,7 +156,7 @@ class _ItemImageCarouselState extends State<ItemImageCarousel> {
   @override
   Widget build(BuildContext context) {
     final providers = itemImageProviders(widget.item, width: widget.width);
-    if (providers.isEmpty) return const ImagePlaceholder();
+    if (providers.isEmpty) return const ImagePlaceholder.noPhoto();
 
     final count = providers.length;
     final current = _index.clamp(0, count - 1);
@@ -172,8 +178,8 @@ class _ItemImageCarouselState extends State<ItemImageCarousel> {
         ),
         if (count > 1) ...[
           Positioned(
-            top: 10,
-            right: 10,
+            top: widget.overlayInsets.top,
+            right: widget.overlayInsets.right,
             child: IgnorePointer(
               child: Container(
                 padding:
@@ -196,7 +202,7 @@ class _ItemImageCarouselState extends State<ItemImageCarousel> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: 8,
+            bottom: widget.overlayInsets.bottom,
             child: IgnorePointer(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -228,17 +234,52 @@ class _ItemImageCarouselState extends State<ItemImageCarousel> {
 }
 
 class ImagePlaceholder extends StatelessWidget {
-  const ImagePlaceholder({super.key});
+  /// Optional caption under the icon, e.g. for posts with no photo attached.
+  final String? label;
+
+  const ImagePlaceholder({super.key, this.label});
+
+  /// Shown when the post was created without any photo.
+  const ImagePlaceholder.noPhoto({super.key}) : label = 'No photo attached';
 
   @override
   Widget build(BuildContext context) {
-    return const ColoredBox(
+    const color = Color(0xFF8A93A3);
+    if (label == null) {
+      return ColoredBox(
+        color: AppColors.track,
+        child: Center(
+          child: Icon(Icons.image_outlined, size: 40, color: color),
+        ),
+      );
+    }
+    return ColoredBox(
       color: AppColors.track,
-      child: Center(
-        child: Icon(
-          Icons.image_outlined,
-          size: 40,
-          color: Color(0xFF8A93A3),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.hide_image_outlined,
+                  size: 40,
+                  color: color,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label!,
+                  style: const TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -255,7 +296,7 @@ class ItemImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = itemImageProvider(item, width: 800);
-    if (provider == null) return const ImagePlaceholder();
+    if (provider == null) return const ImagePlaceholder.noPhoto();
 
     return ColoredBox(
       color: AppColors.track,
@@ -282,9 +323,18 @@ class ItemImage extends StatelessWidget {
 /// Circle with the user's initial, in a colour picked from their name.
 class UserAvatar extends StatelessWidget {
   final String name;
+
+  /// Profile photo; falls back to the coloured initial when empty or while
+  /// it fails to load.
+  final String? photoUrl;
   final double size;
 
-  const UserAvatar({super.key, required this.name, this.size = 40});
+  const UserAvatar({
+    super.key,
+    required this.name,
+    this.photoUrl,
+    this.size = 40,
+  });
 
   static const _palette = [
     Color(0xFF2F5BEA),
@@ -304,7 +354,7 @@ class UserAvatar extends StatelessWidget {
     final seed = trimmed.codeUnits.fold<int>(0, (sum, c) => sum + c);
     final color = _palette[seed % _palette.length];
 
-    return Container(
+    final initialAvatar = Container(
       width: size,
       height: size,
       alignment: Alignment.center,
@@ -319,6 +369,19 @@ class UserAvatar extends StatelessWidget {
           fontWeight: FontWeight.w800,
           fontSize: size * 0.42,
         ),
+      ),
+    );
+
+    final url = photoUrl;
+    if (url == null || url.isEmpty) return initialAvatar;
+    return ClipOval(
+      child: CachedNetworkImage(
+        imageUrl: url,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        placeholder: (_, _) => initialAvatar,
+        errorWidget: (_, _, _) => initialAvatar,
       ),
     );
   }
@@ -414,7 +477,7 @@ class SegmentedTabs extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: option == selected
-                        ? Colors.white
+                        ? AppColors.surface
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(10),
                     boxShadow: option == selected

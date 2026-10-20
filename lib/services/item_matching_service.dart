@@ -1,3 +1,4 @@
+import '../models/item_category.dart';
 import '../models/item_model.dart';
 
 /// Dependency-free matcher for "possible matches".
@@ -91,7 +92,7 @@ class ItemMatchingService {
     final draftType = _reportType(status);
     if (draftType == null) return const [];
 
-    final draftCategory = _normalize(category);
+    final draftCategory = _normalize(ItemCategory.canonical(category));
     final draftName = _normalize(title);
     final draftTokens = _keywords(title);
 
@@ -138,7 +139,8 @@ class ItemMatchingService {
       }
 
       final sameCategory = draftCategory.isNotEmpty &&
-          _normalize(candidate.category) == draftCategory;
+          _normalize(ItemCategory.canonical(candidate.category)) ==
+              draftCategory;
 
       final nameScore = _nameSimilarity(
         draftName,

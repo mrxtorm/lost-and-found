@@ -25,13 +25,13 @@ class TermsService {
   static const List<TermsSection> sections = [
     TermsSection(
       '1. Acceptance of These Terms',
-      'By creating an account or using Campus Lost & Found, you agree to this '
+      'By creating an account or using FoundIt, you agree to this '
           'Terms of Service and User Agreement. If you do not agree, you may '
           'not register or use the app.',
     ),
     TermsSection(
       '2. Purpose of the App',
-      'Campus Lost & Found helps members of the campus community report lost '
+      'FoundIt helps members of the campus community report lost '
           'items, report found items, and return items to their rightful '
           'owners. The app must be used only for this purpose.',
     ),

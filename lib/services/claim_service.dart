@@ -274,27 +274,18 @@ class ClaimService {
       return;
     }
 
-    // Notify first while the claim still exists, then remove the resolved
-    // data. The notification itself contains no sensitive claim answers.
-    try {
-      await _notificationService.createNotification(
-        recipientId: claimantId,
-        type: NotificationType.claimApproved,
-        title: 'Claim Approved',
-        message: 'Your claim for "$itemTitle" was approved.',
-        relatedItemId: itemId,
-        relatedClaimId: claimId,
-      );
-    } catch (_) {
-      // Cleanup should still happen even if notification creation fails.
-    }
-
-    // Mark it Approved first because the Firestore delete rule only permits
-    // the finder to delete an approved claim.
     await claimRef.update({'status': 'Approved'});
 
-    // The claim/item/chat are deleted below, so keep a minimal record that
-    // lets both participants leave optional feedback. Never blocks cleanup.
+    // The post isn't deleted yet: it moves to the finder's archive for
+    // ItemModel.archiveDays, where the claim can still be undone if the
+    // handover falls through. The claim and chat are kept until then too.
+    await _items.doc(itemId).update(_claimedFields(
+      from: 'Found',
+      claimedBy: claimantId,
+      claimedByName: data['claimantName'] as String? ?? '',
+    ));
+
+    // Minimal record that lets both participants leave optional feedback.
     try {
       await FeedbackService().recordCompletedReturn(
         claimId: claimId,
@@ -305,23 +296,179 @@ class ClaimService {
       );
     } catch (_) {}
 
+    try {
+      await _notificationService.createNotification(
+        recipientId: claimantId,
+        type: NotificationType.claimApproved,
+        title: 'Claim Approved',
+        message: 'Your claim for "$itemTitle" was approved.',
+        relatedItemId: itemId,
+        relatedClaimId: claimId,
+      );
+    } catch (_) {}
+  }
+
+  // ============================================================
+  // CLAIMED POSTS (archive)
+  // ============================================================
+
+  Map<String, dynamic> _claimedFields({
+    required String from,
+    required String claimedBy,
+    required String claimedByName,
+  }) {
+    return {
+      'status': 'Claimed',
+      'claimedFrom': from,
+      'claimedBy': claimedBy,
+      'claimedByName': claimedByName,
+      'claimedAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  /// The id of the completed-return record for a Lost post returned by
+  /// [finderId]. (Found posts use the claim id instead.)
+  static String lostReturnId(String itemId, String finderId) =>
+      '${itemId}_$finderId';
+
+  /// The owner of a Lost post confirms they got it back. [finderId] is the
+  /// person who returned it ('' if the owner doesn't name anyone, e.g. from
+  /// My Posts). Returns the completed-return id for the feedback prompt, or
+  /// null when no finder was named.
+  Future<String?> markLostItemReturned(
+    ItemModel item, {
+    String finderId = '',
+    String finderName = '',
+  }) async {
+    final uid = _uid;
+    if (item.ownerId != uid) {
+      throw Exception('Only the person who posted this can mark it claimed.');
+    }
+    if (item.status.toLowerCase() != 'lost') {
+      throw Exception('Only lost posts can be marked as claimed here.');
+    }
+
+    await _items.doc(item.id).update(_claimedFields(
+      from: 'Lost',
+      claimedBy: finderId,
+      claimedByName: finderName,
+    ));
+
+    if (finderId.isEmpty) return null;
+
+    final returnId = lostReturnId(item.id, finderId);
+    // On a Lost post the roles flip: the finder is the other person, the
+    // post owner is the one who got their item back.
+    try {
+      await FeedbackService().recordCompletedReturn(
+        claimId: returnId,
+        itemId: item.id,
+        itemTitle: item.title,
+        ownerId: finderId,
+        claimantId: uid,
+      );
+    } catch (_) {}
+
+    try {
+      final ownerName = _auth.currentUser?.displayName?.trim();
+      final who =
+          (ownerName == null || ownerName.isEmpty) ? 'The owner' : ownerName;
+      await _notificationService.createNotification(
+        recipientId: finderId,
+        type: NotificationType.claimApproved,
+        title: 'Item Returned',
+        message: '$who confirmed you returned "${item.title}". Thank you!',
+        relatedItemId: item.id,
+        relatedClaimId: returnId,
+      );
+    } catch (_) {}
+
+    return returnId;
+  }
+
+  /// Undoes a claim while the post is still in the archive: the post goes
+  /// back to Lost/Found and the other person is told.
+  Future<void> undoClaim(ItemModel item) async {
+    final uid = _uid;
+    if (item.ownerId != uid) {
+      throw Exception('Only the person who posted this can undo the claim.');
+    }
+    if (!item.isClaimed) return;
+
+    final restored = item.statusBeforeClaim;
+    await _items.doc(item.id).update({
+      'status': restored,
+      'claimedFrom': FieldValue.delete(),
+      'claimedBy': FieldValue.delete(),
+      'claimedByName': FieldValue.delete(),
+      'claimedAt': FieldValue.delete(),
+    });
+
+    final otherId = item.claimedBy ?? '';
+    if (otherId.isEmpty) return;
+
+    // A Found post's approved claim becomes Rejected, so the claimant can
+    // keep talking and resend it if things get sorted out.
+    final claimId = '${item.id}_$otherId';
+    if (restored == 'Found') {
+      try {
+        final claimRef = _claims.doc(claimId);
+        final snap = await claimRef.get();
+        final status = (snap.data()?['status'] as String? ?? '').toLowerCase();
+        if (snap.exists && status == 'approved') {
+          await claimRef.update({'status': 'Rejected'});
+        }
+      } catch (_) {}
+    }
+
+    try {
+      await _notificationService.createNotification(
+        recipientId: otherId,
+        type: NotificationType.claimUpdate,
+        title: 'Claim Undone',
+        message: restored == 'Found'
+            ? 'The finder undid the claim on "${item.title}". You can keep '
+                'chatting and resend your claim.'
+            : 'The owner marked "${item.title}" as not returned yet.',
+        relatedItemId: item.id,
+        relatedClaimId: restored == 'Found' ? claimId : null,
+      );
+    } catch (_) {}
+  }
+
+  /// Deletes an archived post for good once its archive time is up: the
+  /// post, the chat with the other person (and its messages) and, for a
+  /// Found post, the approved claim. Runs on the owner's device.
+  Future<void> purgeArchivedItem(ItemModel item) async {
+    final uid = _uid;
+    if (item.ownerId != uid || !item.isClaimed) return;
+
+    final otherId = item.claimedBy ?? '';
     await _deleteResolvedData(
-      claimId: claimId,
-      itemId: itemId,
-      ownerId: ownerId,
-      claimantId: claimantId,
+      claimId: item.statusBeforeClaim == 'Found' && otherId.isNotEmpty
+          ? '${item.id}_$otherId'
+          : null,
+      itemId: item.id,
+      ownerId: uid,
+      claimantId: otherId,
     );
   }
 
   /// Deletes the resolved item, claim, conversation and its messages.
   /// Firestore rules in this project explicitly allow this cleanup only for
-  /// authenticated participants/owners.
+  /// authenticated participants/owners. [claimantId] may be '' (no chat to
+  /// remove) and [claimId] null (no claim, e.g. a Lost post).
   Future<void> _deleteResolvedData({
-    required String claimId,
+    required String? claimId,
     required String itemId,
     required String ownerId,
     required String claimantId,
   }) async {
+    if (claimantId.isEmpty) {
+      await _items.doc(itemId).delete();
+      return;
+    }
+
     final ids = [ownerId, claimantId]..sort();
     final deterministicId = '${itemId}_${ids.join('_')}';
 
@@ -383,7 +530,11 @@ class ClaimService {
       cleanupBatch.delete(ref);
     }
     cleanupBatch.delete(_items.doc(itemId));
-    cleanupBatch.delete(claimRefFor(claimId));
+    if (claimId != null) {
+      // Deleting a claim that isn't there would fail the whole batch.
+      final claimSnap = await claimRefFor(claimId).get();
+      if (claimSnap.exists) cleanupBatch.delete(claimRefFor(claimId));
+    }
     await cleanupBatch.commit();
   }
 

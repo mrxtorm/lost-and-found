@@ -73,6 +73,45 @@ class AuthService {
     return verified;
   }
 
+  // Update the signed-in user's display name and/or photo URL.
+  // Pass an empty photoUrl to remove the current photo.
+  Future<User?> updateProfile({String? displayName, String? photoUrl}) async {
+    final user = _auth.currentUser;
+    if (user == null) throw 'You are not signed in.';
+    try {
+      if (displayName != null) await user.updateDisplayName(displayName);
+      if (photoUrl != null) {
+        await user.updatePhotoURL(photoUrl.isEmpty ? null : photoUrl);
+      }
+      await user.reload();
+      return _auth.currentUser;
+    } on FirebaseAuthException catch (e) {
+      throw _mapAuthError(e);
+    }
+  }
+
+  // Change password after re-authenticating with the current one
+  // (Firebase requires a recent sign-in for this).
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    final user = _auth.currentUser;
+    final email = user?.email;
+    if (user == null || email == null) throw 'You are not signed in.';
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: email, password: currentPassword),
+      );
+      await user.updatePassword(newPassword);
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        throw 'Your current password is incorrect.';
+      }
+      if (e.code == 'too-many-requests') {
+        throw 'Too many attempts. Please wait a moment and try again.';
+      }
+      throw _mapAuthError(e);
+    }
+  }
+
   // Sign out
   Future<void> signOut() async {
     await _auth.signOut();
