@@ -61,7 +61,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   bool get _showChooser =>
-      !_loadingAccounts && _rememberedAccounts.isNotEmpty && !_useAnotherAccount;
+      !_loadingAccounts &&
+      _rememberedAccounts.isNotEmpty &&
+      !_useAnotherAccount;
+
+  /// On the email/password form while this phone has remembered accounts:
+  /// back (button or system gesture) returns to the account list.
+  bool get _canGoBackToChooser =>
+      !_showChooser && _rememberedAccounts.isNotEmpty;
 
   void _selectAccount(RememberedAccount account) {
     setState(() {
@@ -115,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
     await context.read<AuthProvider>().forgetRememberedAccount(account.uid);
     if (!mounted) return;
@@ -123,7 +130,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _rememberedAccounts.removeWhere((a) => a.uid == account.uid);
       if (_selectedAccount?.uid == account.uid) {
         _selectedAccount = null;
-        _useAnotherAccount = _rememberedAccounts.isEmpty ? false : _useAnotherAccount;
+        _useAnotherAccount = _rememberedAccounts.isEmpty
+            ? false
+            : _useAnotherAccount;
         _emailController.clear();
       }
     });
@@ -134,7 +143,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      AppSnack.show(context, "Please enter email and password.", kind: SnackKind.error);
+      AppSnack.show(
+        context,
+        "Please enter email and password.",
+        kind: SnackKind.error,
+      );
       return;
     }
 
@@ -156,14 +169,16 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  InputDecoration _fieldDecoration(String label, IconData icon, {Widget? suffix}) {
+  InputDecoration _fieldDecoration(
+    String label,
+    IconData icon, {
+    Widget? suffix,
+  }) {
     return InputDecoration(
       labelText: label,
       prefixIcon: Icon(icon),
       suffixIcon: suffix,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       filled: true,
       fillColor: AppColors.bg,
     );
@@ -178,7 +193,9 @@ class _LoginScreenState extends State<LoginScreen> {
       AppColors.warn,
       Colors.pink,
     ];
-    final index = seed.isEmpty ? 0 : seed.codeUnits.fold<int>(0, (a, b) => a + b) % palette.length;
+    final index = seed.isEmpty
+        ? 0
+        : seed.codeUnits.fold<int>(0, (a, b) => a + b) % palette.length;
     return palette[index];
   }
 
@@ -212,48 +229,74 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final isLoading = context.watch<AuthProvider>().isLoading;
 
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-          child: Column(
+    return PopScope(
+      canPop: !_canGoBackToChooser,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _backToChooser();
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Stack(
             children: [
-              const SizedBox(height: 50),
-              if (_selectedAccount != null)
-                _accountAvatar(_selectedAccount!, radius: 46)
-              else
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(22),
-                  child: Image.asset(
-                    'assets/icon/app_icon.png',
-                    width: 92,
-                    height: 92,
+              SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 50),
+                    if (_selectedAccount != null)
+                      _accountAvatar(_selectedAccount!, radius: 46)
+                    else
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: Image.asset(
+                          'assets/icon/app_icon.png',
+                          width: 92,
+                          height: 92,
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                    Text(
+                      _showChooser
+                          ? "Welcome back"
+                          : (_selectedAccount != null
+                                ? "Hi, ${_selectedAccount!.label}"
+                                : "Welcome back"),
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _showChooser
+                          ? "Choose an account to continue"
+                          : (_selectedAccount != null
+                                ? "Enter your password to continue"
+                                : "Log in to continue"),
+                      style: TextStyle(fontSize: 14, color: AppColors.muted),
+                    ),
+                    const SizedBox(height: 28),
+                    if (_showChooser)
+                      _buildAccountChooser()
+                    else
+                      _buildForm(isLoading),
+                  ],
+                ),
+              ),
+              if (_canGoBackToChooser)
+                Positioned(
+                  top: 4,
+                  left: 4,
+                  child: IconButton(
+                    tooltip: 'Back to accounts',
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    onPressed: isLoading ? null : _backToChooser,
                   ),
                 ),
-              const SizedBox(height: 20),
-              Text(
-                _showChooser
-                    ? "Welcome back"
-                    : (_selectedAccount != null
-                        ? "Hi, ${_selectedAccount!.label}"
-                        : "Welcome back"),
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.ink,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _showChooser
-                    ? "Choose an account to continue"
-                    : (_selectedAccount != null
-                        ? "Enter your password to continue"
-                        : "Log in to continue"),
-                style: TextStyle(fontSize: 14, color: AppColors.muted),
-              ),
-              const SizedBox(height: 28),
-              if (_showChooser) _buildAccountChooser() else _buildForm(isLoading),
             ],
           ),
         ),
@@ -278,7 +321,10 @@ class _LoginScreenState extends State<LoginScreen> {
               side: BorderSide(color: AppColors.line),
             ),
             child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 4,
+              ),
               leading: _accountAvatar(account),
               title: Text(
                 account.label,
@@ -329,7 +375,10 @@ class _LoginScreenState extends State<LoginScreen> {
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
           readOnly: _selectedAccount != null,
-          decoration: _fieldDecoration("University Email", Icons.email_outlined),
+          decoration: _fieldDecoration(
+            "University Email",
+            Icons.email_outlined,
+          ),
         ),
         const SizedBox(height: 16),
         TextField(
@@ -356,9 +405,7 @@ class _LoginScreenState extends State<LoginScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const ForgotPasswordScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
               );
             },
             child: const Text("Forgot Password?"),
@@ -396,9 +443,7 @@ class _LoginScreenState extends State<LoginScreen> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const RegisterScreen(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const RegisterScreen()),
                 );
               },
               child: const Text("Register"),
